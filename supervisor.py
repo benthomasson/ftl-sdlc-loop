@@ -451,10 +451,16 @@ def beliefs_init():
     """Initialize beliefs.md and nogoods.md in the workspace if they don't exist."""
     registry = _beliefs_registry_path()
     nogoods = _beliefs_nogoods_path()
+    created = False
     if not registry.exists():
         registry.write_text("# Beliefs Registry\n\n## Repos\n\n")
+        created = True
     if not nogoods.exists():
         nogoods.write_text("# Nogoods\n\n")
+        created = True
+    if created:
+        git_commit("[supervisor] Initialize beliefs registry",
+                   files=["beliefs.md", "nogoods.md"])
 
 
 def beliefs_add(claim_id: str, text: str, claim_type: str = "DERIVED", depends_on: str | None = None):
