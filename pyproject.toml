@@ -1,0 +1,40 @@
+[project]
+name = "multiagent-loop"
+version = "0.1.0"
+description = "Autonomous multi-agent software development system"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Ben Thomasson", email = "ben@thomasson.io"}
+]
+keywords = ["ai", "agents", "development", "automation", "claude"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Topic :: Software Development :: Code Generators",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "beliefs @ git+https://github.com/benthomasson/beliefs",
+]
+
+[project.urls]
+Homepage = "https://github.com/benthomasson/multiagent-loop"
+Repository = "https://github.com/benthomasson/multiagent-loop"
+Issues = "https://github.com/benthomasson/multiagent-loop/issues"
+
+[project.scripts]
+multiagent-loop = "multiagent_loop.supervisor:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.uv]
+dev-dependencies = []

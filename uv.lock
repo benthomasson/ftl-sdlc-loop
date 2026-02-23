@@ -1,0 +1,22 @@
+version = 1
+revision = 3
+requires-python = ">=3.11"
+
+[[package]]
+name = "beliefs"
+version = "0.1.0"
+source = { git = "https://github.com/benthomasson/beliefs#d49bd496f4448ff0984e2d195db13998e3e65974" }
+
+[[package]]
+name = "multiagent-loop"
+version = "0.1.0"
+source = { editable = "." }
+dependencies = [
+    { name = "beliefs" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "beliefs", git = "https://github.com/benthomasson/beliefs" }]
+
+[package.metadata.requires-dev]
+dev = []

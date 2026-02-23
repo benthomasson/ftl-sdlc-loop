@@ -32,7 +32,7 @@ import json
 import os
 from pathlib import Path
 from datetime import datetime
-from agent import (
+from .agent import (
     run_agent, finalize_agent, log, log_separator, LOG_FILE,
     get_workspace_dir, get_agents_dir, set_workspace, get_workspace_name,
     DEFAULT_WORKSPACE
@@ -1665,7 +1665,8 @@ def run_continuous(queue_path: Path, max_iterations: int = 3,
         print("=" * 60)
 
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the multiagent-loop CLI."""
     # Handle --help / -h explicitly to prevent it being treated as a task
     if "-h" in sys.argv or "--help" in sys.argv:
         print(f"Usage: {sys.argv[0]} <task description> [options]")
@@ -1841,3 +1842,7 @@ if __name__ == "__main__":
 
         print(f"\nWorkspace: {result['workspace']}")
         print(f"Run 'git log --oneline' in the workspace to see the commit history.")
+
+
+if __name__ == "__main__":
+    main()
