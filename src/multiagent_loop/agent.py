@@ -28,7 +28,7 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
-BASE_DIR = Path(__file__).parent
+BASE_DIR = Path.cwd()
 LOG_FILE = BASE_DIR / "multiagent.log"
 PIDS_DIR = BASE_DIR / "pids"
 
