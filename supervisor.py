@@ -1156,6 +1156,9 @@ def run_iteration(task: str, iteration: int, user_feedback: str | None = None,
             print(f"  [WARNING] {len(unresolved)} test issues unresolved after {max_inner_iterations} attempts")
 
     # Stage 5: User feedback (skip if effort level is minimal or moderate)
+    # Initialize beliefs_warnings before the if/else to avoid UnboundLocalError
+    beliefs_warnings = None
+
     if skip_user:
         print(f"\n[5/5] USER skipped (effort level does not include user testing)")
         results["user"] = "Skipped - effort level does not include user testing"
