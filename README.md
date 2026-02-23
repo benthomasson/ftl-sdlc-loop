@@ -2,7 +2,7 @@
 
 A multi-agent automated software development system using Claude CLI.
 
-## Install
+## Quick Start (No Install)
 
 ```bash
 uvx --from git+https://github.com/benthomasson/multiagent-loop multiagent-loop --help
