@@ -12,3 +12,14 @@ __pycache__/
 
 # Logs
 *.log
+
+# Temporary/test files
+queue.txt
+queue.txt.tmp
+test_queue.txt
+task_*.txt
+*.backup
+
+# Temporary workspace directories (workspace0, workspace1, etc.)
+/workspace[0-9]/
+/workspace[0-9]-*/
