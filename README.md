@@ -1,33 +1,46 @@
 # Multi-Agent Development Loop
 
-A multi-agent automated software development workflow using Claude CLI.
+A multi-agent automated software development system using Claude CLI.
+
+## Install
+
+```bash
+uvx --from git+https://github.com/benthomasson/multiagent-loop multiagent-loop --help
+```
 
 ## Philosophy: Claude Is Your User
 
-### The Key Insight
+### The Numbers Argument
 
-The **User** agent isn't simulating user stories—it actually runs the code, hits errors, and provides real UX feedback. This isn't role-playing. Claude is the intended consumer of the software being built.
+Every human developer now uses multiple AI agents: code completion, code review, test generation, documentation, refactoring, debugging. A single developer might have 5-10 agents touching their code daily. Multiply that across a team and the ratio becomes clear — **there are already more agents using your code than humans**.
 
-Traditional software development tries to imagine what users want:
-- Write requirements based on assumptions
-- Build features speculatively
-- Gather feedback after deployment
-- Iterate based on second-hand reports
+This isn't a future prediction. It's the present. And the gap is only widening. Every new AI-powered dev tool, every IDE integration, every CI/CD agent adds another non-human consumer of your software. The codebase that gets read, executed, and interpreted by 3 humans and 30 agents should be designed for its actual audience.
 
-But here, the user is *in the loop*. We don't have to imagine what Claude wants—we can just ask. When the User agent says "this error message is confusing" or "I wish I could pass a list instead of a single value," that's genuine feedback from the entity that will actually use the code.
+### What This Means for Software Design
+
+If agents are your primary users, then:
+
+- **Error messages** should be machine-parseable, not just human-readable
+- **APIs** should be predictable and self-describing, not clever
+- **Documentation** should be structured data, not prose narratives
+- **Type hints** aren't optional — they're how agents understand your code
+- **Conventions** matter more than creativity — agents rely on patterns
+
+Traditional software development tries to imagine what users want through requirements, user stories, and post-deployment surveys. But when your user is an agent, you can put it directly in the development loop and get immediate, structured, actionable feedback.
 
 ### Real Feedback, Not Simulated
 
-When the User agent runs `python is_prime.py` and hits an `EOFError`, that's not a test case someone wrote. Claude actually tried to use the software and failed. When it reports "the demo crashed in non-interactive mode," that's real UX feedback from real usage.
+The **User** agent in this system isn't simulating user stories — it actually runs the code, hits errors, and provides real UX feedback. This isn't role-playing. Claude is the intended consumer of the software being built.
 
-This changes the nature of the feedback loop:
+When the User agent runs `python is_prime.py` and hits an `EOFError`, that's not a test case someone wrote. Claude actually tried to use the software and failed. When it reports "the demo crashed in non-interactive mode," that's genuine feedback from real usage by a real consumer.
 
-| Traditional | AI-First |
-|-------------|----------|
+| Traditional | Agent-First |
+|-------------|------------|
 | Hypothetical users | Actual user in the loop |
 | Delayed feedback | Real-time feedback |
 | Interpreted requirements | Direct requirements |
-| "Users might want..." | "I want..." |
+| "Users might want..." | "I need..." |
+| 3 humans read your code | 30 agents read your code |
 
 ### The Self-Review Question
 
@@ -44,14 +57,13 @@ Those feature requests go back to the Planner, who decides which are worth imple
 
 ### Why This Works
 
-Claude is particularly well-suited as a user because:
+Agents are particularly well-suited as users because:
 
-1. **It can articulate frustration** - Unlike real users who abandon software silently, Claude explains exactly what went wrong and why
-2. **It follows instructions literally** - If documentation is unclear, Claude will fail in instructive ways
-3. **It provides structured feedback** - Prioritized feature requests, not vague complaints
-4. **It's always available** - No user research scheduling, no interview bias
-
-The result is software designed for how Claude actually works, with error messages Claude can understand and APIs Claude can use effectively.
+1. **They articulate frustration** — Unlike humans who abandon software silently, agents explain exactly what went wrong and why
+2. **They follow instructions literally** — If documentation is unclear, they fail in instructive ways
+3. **They provide structured feedback** — Prioritized feature requests, not vague complaints
+4. **They're always available** — No user research scheduling, no interview bias
+5. **They represent the majority** — Designing for agents means designing for your actual user base
 
 ## Phase 0: Shared Understanding
 
@@ -174,161 +186,116 @@ This surfaces friction points and improvement ideas throughout the pipeline, not
 
 ## Usage
 
-### Full Workflow (Recommended)
+### Quick Start
 
 ```bash
-cd ~/git/multiagent-loop
+# Run from any directory — workspaces are created in cwd
+mkdir my-project && cd my-project
 
-# Phase 0: Build shared understanding (interactive)
-uv run understand.py "build a REST API for user management"
-# Answer the clarifying questions...
+# Run a task
+multiagent-loop --workspace fibonacci "write a function to calculate fibonacci numbers"
 
-# Phase 1+: Run development loop with understanding
-uv run supervisor.py --understanding workspace/SHARED_UNDERSTANDING.md "build a REST API for user management"
+# Fast mode for simple tasks
+multiagent-loop --workspace two-sum --effort minimal --no-questions "solve the two-sum problem"
 ```
 
-### Quick Start (Skip Phase 0)
+### Effort Levels
+
+Control thoroughness vs speed:
 
 ```bash
-# Run development loop directly (planner works from task alone)
-uv run supervisor.py "write a function to calculate fibonacci numbers"
+# Fast (~2-5 min): 3 agents, skip review, basic tests
+multiagent-loop --effort minimal "solve two-sum"
 
-# With iteration limit
-uv run supervisor.py "build a CLI calculator" --max-iterations 5
+# Balanced (~30-60 min): 4 agents, code review, decent tests (default)
+multiagent-loop --effort moderate "build a REST API"
 
-# Continue a previous run (agents remember their prior work)
-uv run supervisor.py --continue "fix the bug identified in the last run"
-
-# Combine options
-uv run supervisor.py --continue --understanding workspace/ --max-iterations 2 "add input validation"
+# Production (~2-3 hours): full 5-agent pipeline, comprehensive testing
+multiagent-loop --effort maximum "implement authentication"
 ```
+
+### Batch Processing
+
+```bash
+# Fully automated — no interactive prompts
+multiagent-loop --workspace my-task --effort minimal --no-questions "solve the problem"
+```
+
+The `--no-questions` flag auto-responds to all agent escalations, ensuring the system never blocks waiting for input. Combined with `--effort minimal`, this enables fully unattended batch processing.
+
+### Named Workspaces
+
+```bash
+# Clone a repo into a workspace
+multiagent-loop --workspace iris --init-from git@github.com:user/iris.git
+
+# Work on it
+multiagent-loop --workspace iris "add a new feature"
+multiagent-loop --workspace iris --continue "fix the bug from last run"
+
+# Push changes back
+multiagent-loop --workspace iris --push    # Push directly
+multiagent-loop --workspace iris --pr      # Or create a PR
+```
+
+Workspaces are created in `workspaces/{name}/` relative to where you run the command.
 
 ### Continuous Mode
 
 Process tasks from a queue file, running unattended:
 
 ```bash
-# Create a queue of tasks
 echo "write a hello world function" > queue.txt
 echo "add error handling" >> queue.txt
-echo "write unit tests" >> queue.txt
 
-# Start continuous mode
-uv run supervisor.py --continuous
-
-# With options
-uv run supervisor.py --continuous --max-iterations 2
-uv run supervisor.py --continuous --queue my_tasks.txt
+multiagent-loop --continuous --effort minimal --no-questions
 ```
 
-Continuous mode:
-- Reads the first task from the queue file
-- Runs the full pipeline on it
-- Removes the completed task from the queue
-- When queue is empty, sleeps 60 seconds then checks again
-- Add new tasks to the queue file while it's running
-- Press Ctrl+C to stop gracefully
+### Shared Understanding
 
-### Named Workspaces
-
-Clone existing repos into named workspaces, work on them, and push back:
+Build context before development:
 
 ```bash
-# Clone a repo into a workspace (local path or git URL)
-uv run supervisor.py --workspace iris --init-from /path/to/iris
-uv run supervisor.py --workspace myapp --init-from git@github.com:user/myapp.git
-
-# Work on the codebase
-uv run supervisor.py --workspace iris "add a new feature"
-uv run supervisor.py --workspace iris --continue "fix the bug from last run"
-
-# Push changes back when done
-uv run supervisor.py --workspace iris --push    # Push directly to main
-uv run supervisor.py --workspace iris --pr      # Or create a pull request
-
-# Multiple projects can run in parallel
-uv run supervisor.py --workspace projectA "implement auth"
-uv run supervisor.py --workspace projectB "add logging"
+multiagent-loop --understanding docs/SHARED_UNDERSTANDING.md "build the feature"
 ```
 
-Workspaces are cloned into `workspaces/{name}/` with full git history and remote.
-Work happens on a `multiagent-work` branch, merged to main on push.
-Default workspace is `default` if `--workspace` is not specified.
-
-### View the git history
-
-After a run, check the workspace:
+### View Results
 
 ```bash
-cd workspaces/iris  # or workspaces/default
-git log --oneline
-```
-
-### Run individual agents
-
-```bash
-uv run agent.py planner "design a REST API for a todo app"
-uv run agent.py implementer "implement a binary search function"
-uv run agent.py user "try running this code and report issues"
-
-# Continue an agent's conversation
-uv run agent.py planner -c "what about error handling?"
-```
-
-### Monitor and control agents
-
-```bash
-# Check which agents are running
-uv run agent.py --status
-
-# Kill a hung agent
-uv run agent.py --kill tester
-
-# Force kill (SIGKILL)
-uv run agent.py --kill tester -9
-
-# Kill all agents
-uv run agent.py --kill-all
+cd workspaces/my-task
+git log --oneline          # Full audit trail
+cat FINAL_REPORT.md        # Summary
+cat implementer/*.py       # Generated code
 ```
 
 ## Directory Structure
 
+### Package (installed via uvx)
+
 ```
-multiagent-loop/
-├── understand.py      # Phase 0: Shared understanding builder
+src/multiagent_loop/
+├── __init__.py        # Package metadata
 ├── supervisor.py      # Pipeline orchestrator with feedback loop
 ├── agent.py           # Agent runner utility
-├── agents/            # Agent session directories (per workspace)
-│   └── {workspace}/   # e.g., "default", "iris", "myproject"
-│       ├── planner/
-│       ├── implementer/
-│       ├── reviewer/
-│       ├── tester/
-│       └── user/
+└── understand.py      # Phase 0: Shared understanding builder
+```
+
+### Runtime (created in cwd when you run multiagent-loop)
+
+```
+your-project/
 ├── workspaces/        # Named workspaces (each a git repo)
-│   └── {workspace}/   # e.g., "default", "iris", "myproject"
-│       ├── .git/      # Full commit history
-│       ├── TASK.md    # Original task
-│       ├── PLAN.md    # Planner output
-│       ├── IMPLEMENTATION.md
-│       ├── REVIEW.md
-│       ├── USAGE.md
-│       ├── USER_FEEDBACK.md
-│       ├── ITERATION_*_SUMMARY.md
-│       ├── FINAL_SUMMARY.md
-│       ├── entries/   # Full agent outputs per iteration
-│       │   └── iteration-{N}/
-│       │       ├── planner.md
-│       │       ├── implementer.md
-│       │       ├── reviewer.md
-│       │       ├── tester.md
-│       │       └── user.md
-│       ├── beliefs.md # Belief registry
-│       ├── nogoods.md # Contradiction database
-│       └── *.py       # Generated code files
+│   └── {workspace}/
+│       ├── .git/
+│       ├── TASK.md, PLAN.md, REVIEW.md, USAGE.md
+│       ├── FINAL_REPORT.md
+│       ├── implementer/*.py     # Generated code
+│       ├── tester/test_*.py     # Generated tests
+│       ├── beliefs.md           # Claim tracking
+│       └── entries/iteration-{N}/*.md  # Audit trail
+├── agents/            # Agent session directories
 ├── pids/              # PID files for running agents
-│   └── {role}.pid     # Contains PID of running agent process
-└── multiagent.log     # Verbose logging output
+└── multiagent.log     # Verbose logging
 ```
 
 ## How It Works
@@ -396,4 +363,4 @@ The `beliefs` library is a required dependency — it's declared in supervisor.p
 
 - [uv](https://github.com/astral-sh/uv) - Python package manager
 - [Claude CLI](https://claude.ai/code) - `claude` command available in PATH
-- [beliefs](https://github.com/benthomasson/beliefs) - Claim tracking for contradiction detection (installed automatically by `uv run`)
+- [beliefs](https://github.com/benthomasson/beliefs) - Installed automatically as a dependency
