@@ -359,6 +359,26 @@ The `beliefs` library is a required dependency — it's declared in supervisor.p
 | `ITERATION_N_SUMMARY.md` | Supervisor | Per-iteration summary |
 | `FINAL_SUMMARY.md` | Supervisor | Final status and history |
 
+## Installation
+
+```bash
+# Install as a CLI tool
+uv tool install git+https://github.com/benthomasson/multiagent-loop
+
+# Then use it anywhere
+multiagent-loop "write a function to calculate fibonacci numbers"
+multiagent-loop --workspace myproject --init-from /path/to/repo
+```
+
+Or run directly without installing:
+
+```bash
+# Clone and run with uv
+git clone https://github.com/benthomasson/multiagent-loop
+cd multiagent-loop
+uv run supervisor.py "your task here"
+```
+
 ## Requirements
 
 - [uv](https://github.com/astral-sh/uv) - Python package manager
