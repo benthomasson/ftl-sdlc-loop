@@ -84,9 +84,11 @@ Requirements:
   echo
   
   # Run the supervisor with minimal effort for fast execution
+  # --no-questions ensures it never waits for user input
   uv run supervisor.py \
     --workspace "$problem" \
     --effort minimal \
+    --no-questions \
     "$TASK"
   
   EXIT_CODE=$?
