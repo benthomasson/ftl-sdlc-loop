@@ -248,6 +248,17 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
         print(f"Error: Workspace '{get_workspace_name()}' is not a git repository")
         return False
 
+    # Read task description before cleanup deletes TASK.md
+    # Format is: "# Task\n\n{description}\n\nStarted: {timestamp}"
+    task_file = workspace / "TASK.md"
+    if task_file.exists():
+        lines = task_file.read_text().strip().splitlines()
+        # Skip header and blank lines, stop before "Started:" metadata
+        desc_lines = [l for l in lines if l and not l.startswith("# ") and not l.startswith("Started:")]
+        task_desc = "\n".join(desc_lines)[:200] or "multiagent-loop changes"
+    else:
+        task_desc = "multiagent-loop changes"
+
     # Artifact files/directories to remove before pushing
     ARTIFACT_PATTERNS = [
         "TASK.md", "PLAN.md", "IMPLEMENTATION.md", "REVIEW.md", "USAGE.md",
@@ -300,13 +311,6 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
 
     if squash and commit_count > 1:
         print(f"Squashing {commit_count} commits...")
-        # Get the commit message from the task
-        task_file = workspace / "TASK.md"
-        if task_file.exists():
-            task_desc = task_file.read_text().strip()[:200]
-        else:
-            task_desc = "multiagent-loop changes"
-
         # Soft reset to origin and recommit
         subprocess.run(
             ["git", "reset", "--soft", f"origin/{branch}"],
@@ -1775,13 +1779,16 @@ def main():
     # Set the workspace before any other operations
     set_workspace(workspace_name)
 
-    # Handle --init-from early (it exits after completing)
+    # Handle --init-from early (initialize workspace, then continue if task provided)
     if "--init-from" in args:
         idx = args.index("--init-from")
         source = args[idx + 1]  # Can be path or URL
         args = args[:idx] + args[idx + 2:]
         success = init_workspace_from(source)
-        sys.exit(0 if success else 1)
+        if not success:
+            sys.exit(1)
+        if not args:
+            sys.exit(0)
 
     # Handle --push and --pr early (they exit after completing)
     if "--push" in args or "--pr" in args:
