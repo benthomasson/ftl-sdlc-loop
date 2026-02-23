@@ -260,10 +260,12 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
         task_desc = "multiagent-loop changes"
 
     # Artifact files/directories to remove before pushing
+    # Artifact files to remove - preserve test_*.py files
     ARTIFACT_PATTERNS = [
         "TASK.md", "PLAN.md", "IMPLEMENTATION.md", "REVIEW.md", "USAGE.md",
         "USER_FEEDBACK.md", "FINAL_REPORT.md", "CUMULATIVE_UNDERSTANDING.md",
-        "ITERATION_*.md", "planner/", "implementer/", "reviewer/", "tester/", "user/",
+        "ITERATION_*.md", "planner/", "implementer/", "reviewer/", "user/",
+        "tester/USAGE.md", "tester/*.md",  # Keep tester/test_*.py
         "entries/", "beliefs.md", "nogoods.md"
     ]
 
