@@ -168,6 +168,120 @@ def gitlab_assign_issue(issue_number: int, username: str | None = None) -> bool:
     return True
 
 
+def gitlab_find_mr_template(workspace: Path) -> Path | None:
+    """Find MR template in workspace.
+
+    Checks standard GitLab template locations:
+    - .gitlab/merge_request_templates/Default.md
+    - .gitlab/merge_request_templates/default.md
+    """
+    template_paths = [
+        workspace / ".gitlab" / "merge_request_templates" / "Default.md",
+        workspace / ".gitlab" / "merge_request_templates" / "default.md",
+    ]
+    for path in template_paths:
+        if path.exists():
+            return path
+    return None
+
+
+def gitlab_fill_mr_template(
+    template_content: str,
+    task: str,
+    gitlab_issue: dict | None,
+    workspace: Path
+) -> str:
+    """Fill in MR template using Claude to generate intelligent content.
+
+    Passes the template to Claude along with context (PLAN.md, git diff, etc.)
+    and asks Claude to fill it out properly.
+    """
+    env = os.environ.copy()
+    env.pop("CLAUDECODE", None)
+
+    # Gather context for Claude
+    context_parts = []
+
+    # Git diff for actual changes
+    diff_result = subprocess.run(
+        ["git", "diff", "origin/main..HEAD", "--", "src/", "tests/"],
+        cwd=workspace, env=env, capture_output=True, text=True
+    )
+    if diff_result.returncode == 0 and diff_result.stdout.strip():
+        # Limit diff size
+        diff_content = diff_result.stdout[:8000]
+        if len(diff_result.stdout) > 8000:
+            diff_content += "\n... (diff truncated)"
+        context_parts.append(f"## Git Diff\n```diff\n{diff_content}\n```")
+
+    # PLAN.md
+    plan_path = workspace / "PLAN.md"
+    if plan_path.exists():
+        plan_content = plan_path.read_text()[:3000]
+        context_parts.append(f"## PLAN.md\n{plan_content}")
+
+    # REVIEW.md
+    review_path = workspace / "REVIEW.md"
+    if review_path.exists():
+        review_content = review_path.read_text()[:2000]
+        context_parts.append(f"## REVIEW.md\n{review_content}")
+
+    # Test results if available
+    test_path = workspace / "tester" / "USAGE.md"
+    if test_path.exists():
+        test_content = test_path.read_text()[:1500]
+        context_parts.append(f"## Test Results\n{test_content}")
+
+    context = "\n\n---\n\n".join(context_parts)
+
+    # Build prompt for Claude
+    issue_info = ""
+    if gitlab_issue:
+        issue_info = f"\nThis addresses GitLab issue #{gitlab_issue['number']}: {gitlab_issue['title']}"
+        issue_info += f"\nInclude 'Closes #{gitlab_issue['number']}' in the Related Issues section."
+
+    prompt = f"""Fill out this GitLab merge request template based on the context provided.
+
+## Original Task
+{task}
+{issue_info}
+
+## Context
+{context}
+
+## MR Template to Fill Out
+{template_content}
+
+---
+
+Instructions:
+1. Fill in each section of the template with appropriate content based on the context
+2. For "Type of Change" checkboxes, mark the appropriate one with [x]
+3. Be concise but informative - this is for code reviewers
+4. Keep the original template structure and headings
+5. Add "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)" at the end
+
+Output ONLY the filled-in template, nothing else."""
+
+    # Run Claude to fill the template
+    print("  Using Claude to fill MR template...")
+    result = subprocess.run(
+        ["claude", "-p", prompt, "--output-format", "text"],
+        capture_output=True, text=True, env=env
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        print(f"  Warning: Claude failed to fill template, using fallback")
+        # Fallback to simple description
+        fallback = f"## Description\n\n{task[:500]}\n\n"
+        if gitlab_issue:
+            fallback += f"Closes #{gitlab_issue['number']}\n\n"
+        fallback += "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)"
+        return fallback
+
+    return result.stdout.strip()
+
+
 def gitlab_create_mr(
     source_branch: str,
     title: str,
@@ -2215,10 +2329,24 @@ def main():
             else:
                 # Create MR
                 mr_title = gitlab_issue['title'] if gitlab_issue else task[:70]
-                mr_description = f"## Description\n\n{task[:500]}\n\n"
-                if gitlab_issue:
-                    mr_description += f"Closes #{gitlab_issue['number']}\n\n"
-                mr_description += "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)"
+
+                # Check for MR template in workspace
+                mr_template_path = gitlab_find_mr_template(workspace)
+                if mr_template_path:
+                    print(f"Using MR template: {mr_template_path}")
+                    template_content = mr_template_path.read_text()
+                    mr_description = gitlab_fill_mr_template(
+                        template_content=template_content,
+                        task=task,
+                        gitlab_issue=gitlab_issue,
+                        workspace=workspace
+                    )
+                else:
+                    # Fallback to simple description
+                    mr_description = f"## Description\n\n{task[:500]}\n\n"
+                    if gitlab_issue:
+                        mr_description += f"Closes #{gitlab_issue['number']}\n\n"
+                    mr_description += "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)"
 
                 mr_url = gitlab_create_mr(
                     source_branch=mr_branch,

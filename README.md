@@ -307,6 +307,8 @@ The `--gitlab-mr` flag:
 - Pushes the work branch to origin
 - Creates a merge request with the issue title
 - Assigns to current user
+- **Auto-detects MR template** from `.gitlab/merge_request_templates/Default.md`
+- Fills in template sections: Description, Type of Change, Changes Made, Related Issues
 
 **Requires:** [glab CLI](https://gitlab.com/gitlab-org/cli) installed and authenticated (`glab auth login`).
 
