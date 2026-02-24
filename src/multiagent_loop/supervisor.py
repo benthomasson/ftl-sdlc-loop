@@ -119,15 +119,20 @@ def gitlab_get_username() -> str | None:
         return None
 
 
-def gitlab_fetch_issue(issue_number: int) -> dict | None:
+def gitlab_fetch_issue(issue_number: int, cwd: Path | None = None) -> dict | None:
     """Fetch GitLab issue details via glab.
+
+    Args:
+        issue_number: The GitLab issue number
+        cwd: Directory to run glab from (must be a git repo with GitLab remote)
 
     Returns dict with 'title', 'description', 'labels', 'web_url' or None on error.
     """
     try:
         result = subprocess.run(
             ["glab", "issue", "view", str(issue_number), "--output", "json"],
-            capture_output=True, text=True
+            capture_output=True, text=True,
+            cwd=cwd
         )
         if result.returncode != 0:
             print(f"Error fetching issue #{issue_number}: {result.stderr}")
@@ -149,8 +154,14 @@ def gitlab_fetch_issue(issue_number: int) -> dict | None:
         return None
 
 
-def gitlab_assign_issue(issue_number: int, username: str | None = None) -> bool:
-    """Assign GitLab issue to a user (default: current user)."""
+def gitlab_assign_issue(issue_number: int, username: str | None = None, cwd: Path | None = None) -> bool:
+    """Assign GitLab issue to a user (default: current user).
+
+    Args:
+        issue_number: The GitLab issue number
+        username: GitLab username (default: current authenticated user)
+        cwd: Directory to run glab from (must be a git repo with GitLab remote)
+    """
     if username is None:
         username = gitlab_get_username()
     if username is None:
@@ -159,7 +170,8 @@ def gitlab_assign_issue(issue_number: int, username: str | None = None) -> bool:
 
     result = subprocess.run(
         ["glab", "issue", "update", str(issue_number), "--assignee", username],
-        capture_output=True, text=True
+        capture_output=True, text=True,
+        cwd=cwd
     )
     if result.returncode != 0:
         print(f"Warning: Could not assign issue #{issue_number}: {result.stderr}")
@@ -287,9 +299,18 @@ def gitlab_create_mr(
     title: str,
     description: str,
     target_branch: str = "main",
-    assignee: str | None = None
+    assignee: str | None = None,
+    cwd: Path | None = None
 ) -> str | None:
     """Create GitLab merge request via glab.
+
+    Args:
+        source_branch: Branch with changes
+        title: MR title
+        description: MR description/body
+        target_branch: Branch to merge into (default: main)
+        assignee: GitLab username to assign
+        cwd: Directory to run glab from (must be a git repo with GitLab remote)
 
     Returns MR URL on success, None on failure.
     """
@@ -305,7 +326,7 @@ def gitlab_create_mr(
     if assignee:
         cmd.extend(["--assignee", assignee])
 
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
 
     if result.returncode != 0:
         print(f"Error creating MR: {result.stderr}")
@@ -2258,16 +2279,22 @@ def main():
             sys.exit(1)
 
     # Handle GitLab issue - fetch and use as task
+    # Note: glab needs to run from within a git repo with GitLab remote
     gitlab_issue = None
     if gitlab_issue_number:
+        workspace = get_workspace_dir()
+        if not workspace.exists() or not (workspace / ".git").exists():
+            print(f"Error: Workspace must be initialized with --init-from before using --gitlab-issue")
+            print(f"  glab requires a git repo with GitLab remote to detect the project")
+            sys.exit(1)
         print(f"Fetching GitLab issue #{gitlab_issue_number}...")
-        gitlab_issue = gitlab_fetch_issue(gitlab_issue_number)
+        gitlab_issue = gitlab_fetch_issue(gitlab_issue_number, cwd=workspace)
         if not gitlab_issue:
             print(f"Error: Could not fetch GitLab issue #{gitlab_issue_number}")
             sys.exit(1)
         print(f"Issue: {gitlab_issue['title']}")
         # Assign to self
-        gitlab_assign_issue(gitlab_issue_number)
+        gitlab_assign_issue(gitlab_issue_number, cwd=workspace)
         # Generate branch name if not specified
         if not branch_name:
             branch_name = gitlab_branch_name(gitlab_issue)
@@ -2353,7 +2380,8 @@ def main():
                     title=mr_title,
                     description=mr_description,
                     target_branch="main",
-                    assignee=gitlab_get_username()
+                    assignee=gitlab_get_username(),
+                    cwd=workspace
                 )
                 if mr_url:
                     print(f"Merge request created: {mr_url}")
