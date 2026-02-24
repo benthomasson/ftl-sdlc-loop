@@ -16,8 +16,11 @@ uv run supervisor.py "write a function to check if a number is prime"
 uv run supervisor.py --workspace iris --init-from /path/to/iris  # Clone local repo
 uv run supervisor.py --workspace iris --init-from git@github.com:user/repo.git  # Or clone URL
 uv run supervisor.py --workspace iris "add a new feature"         # Work on it
-uv run supervisor.py --workspace iris --push                      # Push changes back
+uv run supervisor.py --workspace iris --push                      # Push changes back (archives artifacts to logs/)
 uv run supervisor.py --workspace iris --pr                        # Or create a PR
+
+# Environment variables - load secrets for agents
+uv run supervisor.py --workspace myproject --env ~/.secrets/myproject.env "build API integration"
 
 # With shared understanding from Phase 0
 uv run supervisor.py --understanding workspace/SHARED_UNDERSTANDING.md "build the feature"
@@ -145,8 +148,10 @@ Before the user stage, `beliefs compact` is injected into context. The exit gate
 - `workspaces/{name}/` - Named workspaces, each a git repo with artifacts and agent subdirectories
   - `entries/iteration-{N}/` - Full agent outputs per iteration (planner.md, implementer.md, etc.)
   - `beliefs.md` / `nogoods.md` - Beliefs system state
+  - `.env` - Environment variables (copied via `--env`, added to .gitignore)
 - `agents/{name}/` - Session directories per workspace for conversation isolation
 - `pids/` - PID files for running agent processes
+- `logs/` - Archived artifacts from `--push` (e.g., `iris_20260224_143052_artifacts.tar.gz`)
 - `multiagent.log` - Verbose logging output
 
 Default workspace name is `default` if `--workspace` not specified.

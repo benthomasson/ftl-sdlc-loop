@@ -242,6 +242,25 @@ Workspaces are created in `workspaces/{name}/` relative to where you run the com
 
 When pushing, artifact files (PLAN.md, REVIEW.md, etc.) are archived to `logs/{workspace}_{timestamp}_artifacts.tar.gz` before being removed from the repo.
 
+### Environment Variables
+
+Load secrets and configuration for agents:
+
+```bash
+# Load .env file into workspace and environment
+multiagent-loop --workspace myproject --env ~/.secrets/myproject.env "build API integration"
+
+# Can combine with --init-from
+multiagent-loop --workspace iris --init-from ~/git/iris --env ~/iris.env "add OAuth support"
+```
+
+The `.env` file is:
+- Copied to the workspace root
+- Automatically added to `.gitignore` (prevents committing secrets)
+- Parsed and loaded into the environment for agents to inherit
+
+Supports standard `.env` format: comments (`#`), empty lines, `export` prefix, and quoted values.
+
 ### Continuous Mode
 
 Process tasks from a queue file, running unattended:
@@ -289,6 +308,7 @@ your-project/
 ├── workspaces/        # Named workspaces (each a git repo)
 │   └── {workspace}/
 │       ├── .git/
+│       ├── .env                 # Environment variables (via --env, gitignored)
 │       ├── TASK.md, PLAN.md, REVIEW.md, USAGE.md
 │       ├── FINAL_REPORT.md
 │       ├── implementer/*.py     # Generated code
@@ -297,6 +317,7 @@ your-project/
 │       └── entries/iteration-{N}/*.md  # Audit trail
 ├── agents/            # Agent session directories
 ├── pids/              # PID files for running agents
+├── logs/              # Archived artifacts from --push
 └── multiagent.log     # Verbose logging
 ```
 
