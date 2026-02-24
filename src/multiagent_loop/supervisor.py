@@ -269,21 +269,51 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
         "entries/", "beliefs.md", "nogoods.md"
     ]
 
-    # Remove artifact files
-    print("Cleaning up artifact files...")
+    # Archive artifact files before removing
     import glob
+    import tarfile
+    from datetime import datetime as dt
+
+    # Collect all artifact files that exist
+    artifact_files = []
     for pattern in ARTIFACT_PATTERNS:
         for path in glob.glob(str(workspace / pattern)):
-            p = Path(path)
-            if p.is_dir():
-                import shutil
-                shutil.rmtree(p)
-                subprocess.run(["git", "rm", "-rf", str(p.relative_to(workspace))],
-                             cwd=workspace, env=env, capture_output=True)
-            elif p.exists():
-                p.unlink()
-                subprocess.run(["git", "rm", "-f", str(p.relative_to(workspace))],
-                             cwd=workspace, env=env, capture_output=True)
+            artifact_files.append(Path(path))
+
+    if artifact_files:
+        # Create logs directory relative to cwd (where multiagent-loop runs from)
+        logs_dir = Path.cwd() / "logs"
+        logs_dir.mkdir(parents=True, exist_ok=True)
+
+        # Create timestamped tarball
+        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+        workspace_name = get_workspace_name()
+        tarball_name = f"{workspace_name}_{timestamp}_artifacts.tar.gz"
+        tarball_path = logs_dir / tarball_name
+
+        print(f"Archiving {len(artifact_files)} artifact files to {tarball_path}...")
+        with tarfile.open(tarball_path, "w:gz") as tar:
+            for artifact_path in artifact_files:
+                # Store with path relative to workspace
+                arcname = artifact_path.relative_to(workspace)
+                if artifact_path.is_dir():
+                    tar.add(artifact_path, arcname=arcname)
+                elif artifact_path.exists():
+                    tar.add(artifact_path, arcname=arcname)
+        print(f"  Archived to: {tarball_path}")
+
+    # Remove artifact files (reuse collected list)
+    print("Cleaning up artifact files...")
+    import shutil
+    for p in artifact_files:
+        if p.is_dir():
+            shutil.rmtree(p)
+            subprocess.run(["git", "rm", "-rf", str(p.relative_to(workspace))],
+                         cwd=workspace, env=env, capture_output=True)
+        elif p.exists():
+            p.unlink()
+            subprocess.run(["git", "rm", "-f", str(p.relative_to(workspace))],
+                         cwd=workspace, env=env, capture_output=True)
 
     # Check for any uncommitted changes (including deletions)
     result = subprocess.run(
@@ -1687,7 +1717,7 @@ def main():
         print(f"  --continuous          Run in continuous mode, processing tasks from a queue file")
         print(f"  --queue PATH          Path to queue file (default: queue.txt)")
         print(f"  --init-from PATH|URL  Clone repo into workspace (local path or git URL)")
-        print(f"  --push                Push workspace changes back to origin (then exit)")
+        print(f"  --push                Push workspace changes (archives artifacts to logs/)")
         print(f"  --pr                  Create a pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
         print(f"  --no-questions        Disable all interactive prompts (auto-respond with defaults)")
@@ -1725,7 +1755,7 @@ def main():
         print(f"  --continuous          Run in continuous mode, processing tasks from a queue file")
         print(f"  --queue PATH          Path to queue file (default: queue.txt)")
         print(f"  --init-from PATH|URL  Clone repo into workspace (local path or git URL)")
-        print(f"  --push                Push workspace changes back to origin (then exit)")
+        print(f"  --push                Push workspace changes (archives artifacts to logs/)")
         print(f"  --pr                  Create a pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
         print(f"  --no-questions        Disable all interactive prompts (auto-respond with defaults)")

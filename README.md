@@ -233,12 +233,14 @@ multiagent-loop --workspace iris --init-from git@github.com:user/iris.git
 multiagent-loop --workspace iris "add a new feature"
 multiagent-loop --workspace iris --continue "fix the bug from last run"
 
-# Push changes back
+# Push changes back (artifacts archived to logs/)
 multiagent-loop --workspace iris --push    # Push directly
 multiagent-loop --workspace iris --pr      # Or create a PR
 ```
 
 Workspaces are created in `workspaces/{name}/` relative to where you run the command.
+
+When pushing, artifact files (PLAN.md, REVIEW.md, etc.) are archived to `logs/{workspace}_{timestamp}_artifacts.tar.gz` before being removed from the repo.
 
 ### Continuous Mode
 
