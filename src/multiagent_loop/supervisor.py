@@ -577,6 +577,38 @@ def init_workspace_from(source: str) -> bool:
         cwd=workspace, env=env, capture_output=True
     )
 
+    # For local repos (especially bare repos), copy their upstream remotes
+    # This allows glab to detect the GitLab project
+    if not is_url:
+        source_path = Path(source_str)
+        # Get remotes from source repo
+        remote_result = subprocess.run(
+            ["git", "remote", "-v"],
+            cwd=source_path, env=env, capture_output=True, text=True
+        )
+        if remote_result.returncode == 0:
+            # Parse remotes and find ones pointing to GitLab
+            for line in remote_result.stdout.strip().split('\n'):
+                if not line.strip():
+                    continue
+                parts = line.split()
+                if len(parts) >= 2:
+                    remote_name, remote_url = parts[0], parts[1]
+                    # Check if this points to GitLab (not a local path)
+                    if 'gitlab' in remote_url.lower() or remote_url.startswith(('git@', 'https://', 'ssh://')):
+                        # Add this remote to workspace as "gitlab" if origin points locally
+                        existing = subprocess.run(
+                            ["git", "remote", "get-url", "gitlab"],
+                            cwd=workspace, env=env, capture_output=True
+                        )
+                        if existing.returncode != 0:  # gitlab remote doesn't exist
+                            subprocess.run(
+                                ["git", "remote", "add", "gitlab", remote_url],
+                                cwd=workspace, env=env, capture_output=True
+                            )
+                            print(f"  Added 'gitlab' remote: {remote_url}")
+                        break
+
     print(f"Workspace '{get_workspace_name()}' cloned from {source_str}")
     print(f"  Location: {workspace}")
     print(f"  Branch: multiagent-work")
