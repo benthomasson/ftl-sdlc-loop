@@ -1453,6 +1453,7 @@ def run_iteration(task: str, iteration: int, user_feedback: str | None = None,
     if existing_plan:
         print(f"\n[1/5] PLANNER skipped - using provided plan")
         results["planner"] = existing_plan
+        plan_result = {"output": existing_plan}  # For beliefs registration below
         save_artifact("PLAN.md", f"# Plan (Provided)\n\nTask: {task}\n\n{existing_plan}")
         git_commit(f"[planner] Using provided plan for: {task[:50]}...")
         save_entry(iteration, "planner", results["planner"])
