@@ -261,6 +261,26 @@ The `.env` file is:
 
 Supports standard `.env` format: comments (`#`), empty lines, `export` prefix, and quoted values.
 
+### Plan Review Workflow
+
+For bigger projects, review the plan before implementation:
+
+```bash
+# Step 1: Generate plan only
+multiagent-loop --workspace myproject --plan-only "build a REST API with authentication"
+
+# Step 2: Review and edit the plan
+cat workspaces/myproject/PLAN.md
+# Edit if needed...
+
+# Step 3: Run with the reviewed plan
+multiagent-loop --workspace myproject --plan workspaces/myproject/PLAN.md "build a REST API with authentication"
+```
+
+The `--plan-only` flag runs only the planner, saves `PLAN.md`, and exits for human review.
+
+The `--plan PATH` flag uses an existing plan file and skips the planner stage.
+
 ### Reading Task from File
 
 For complex task descriptions, read from a file:

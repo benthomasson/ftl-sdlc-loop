@@ -25,6 +25,10 @@ uv run supervisor.py --workspace myproject --env ~/.secrets/myproject.env "build
 # Read task from file (for complex prompts)
 uv run supervisor.py --workspace myproject --prompt-file task.md
 
+# Plan review workflow - generate plan, review, then implement
+uv run supervisor.py --workspace myproject --plan-only "build feature X"  # Generate plan only
+uv run supervisor.py --workspace myproject --plan workspaces/myproject/PLAN.md "build feature X"  # Use existing plan
+
 # GitLab workflow - fetch issue, run pipeline, create MR
 # Direct clone from GitLab:
 uv run supervisor.py --workspace issue-285 --init-from git@gitlab.com:org/repo.git --gitlab-issue 285 --effort minimal

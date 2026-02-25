@@ -1428,12 +1428,15 @@ def run_iteration(task: str, iteration: int, user_feedback: str | None = None,
                   continue_conversations: bool = False,
                   max_inner_iterations: int = 3,
                   effort_config: dict | None = None,
-                  no_questions: bool = False) -> dict:
+                  no_questions: bool = False,
+                  existing_plan: str | None = None) -> dict:
     """Run one iteration of the development loop.
 
     Inner loops:
     - Reviewer → Implementer (if NEEDS_CHANGES)
     - Tester → Implementer (if tests fail)
+
+    If existing_plan is provided, skips the planner stage.
     """
     if effort_config is None:
         effort_config = EFFORT_CONFIGS['moderate']
@@ -1446,12 +1449,20 @@ def run_iteration(task: str, iteration: int, user_feedback: str | None = None,
     # Add effort-specific instructions to task
     task_with_effort = task + effort_config.get('prompts', {}).get('planner', '')
 
-    # Stage 1: Planning
-    print(f"\n[1/5] PLANNER designing solution...")
-    plan_result = planner(task_with_effort, user_feedback, shared_understanding, iteration, continue_conversations)
-    results["planner"] = process_agent_output("planner", plan_result["output"], iteration, no_questions)
-    save_entry(iteration, "planner", results["planner"])
-    print(f"\n{results['planner']}\n")
+    # Stage 1: Planning (skip if existing plan provided)
+    if existing_plan:
+        print(f"\n[1/5] PLANNER skipped - using provided plan")
+        results["planner"] = existing_plan
+        save_artifact("PLAN.md", f"# Plan (Provided)\n\nTask: {task}\n\n{existing_plan}")
+        git_commit(f"[planner] Using provided plan for: {task[:50]}...")
+        save_entry(iteration, "planner", results["planner"])
+        print(f"\n{results['planner'][:500]}...\n")
+    else:
+        print(f"\n[1/5] PLANNER designing solution...")
+        plan_result = planner(task_with_effort, user_feedback, shared_understanding, iteration, continue_conversations)
+        results["planner"] = process_agent_output("planner", plan_result["output"], iteration, no_questions)
+        save_entry(iteration, "planner", results["planner"])
+        print(f"\n{results['planner']}\n")
 
     # Beliefs: register planner decisions as AXIOMs
     if _beliefs_registry_path().exists():
@@ -1842,7 +1853,8 @@ def request_human_input(agent_name: str, escalation: dict, iteration: int, no_qu
 
 
 def run_pipeline(task: str, max_iterations: int = 3, understanding_path: str | None = None,
-                 continue_conversations: bool = False, effort: str = 'moderate', no_questions: bool = False) -> dict:
+                 continue_conversations: bool = False, effort: str = 'moderate', no_questions: bool = False,
+                 plan_only: bool = False, existing_plan: str | None = None) -> dict:
     """Run the development loop with feedback iterations."""
 
     # Get effort configuration
@@ -1891,6 +1903,27 @@ def run_pipeline(task: str, max_iterations: int = 3, understanding_path: str | N
     save_artifact("TASK.md", f"# Task\n\n{task}\n\nStarted: {datetime.now().isoformat()}")
     git_commit(f"[supervisor] Start task: {task[:50]}...")
 
+    # Plan-only mode: run planner and exit
+    if plan_only:
+        print(f"\n[PLAN-ONLY MODE] Running planner only...")
+        plan_result = planner(task, None, shared_understanding, 1, continue_conversations)
+        plan_output = plan_result["output"]
+        save_artifact("PLAN.md", f"# Plan\n\nTask: {task}\n\n{plan_output}")
+        git_commit(f"[planner] Plan for: {task[:50]}...")
+        print(f"\n{plan_output}\n")
+        print(f"\n{'='*60}")
+        print(f"PLAN-ONLY MODE COMPLETE")
+        print(f"Plan saved to: {get_workspace_dir() / 'PLAN.md'}")
+        print(f"Review the plan, then run with --plan PLAN.md to continue")
+        print("=" * 60)
+        return {
+            "workspace": str(get_workspace_dir()),
+            "iterations": 0,
+            "final_satisfied": False,
+            "plan_only": True,
+            "plan": plan_output
+        }
+
     all_results = []
     user_feedback = None
 
@@ -1900,9 +1933,13 @@ def run_pipeline(task: str, max_iterations: int = 3, understanding_path: str | N
         print(f"ITERATION {iteration} of {max_iterations}")
         print("=" * 60)
 
+        # Only use existing_plan for the first iteration
+        plan_for_iteration = existing_plan if i == 0 else None
+
         results = run_iteration(task, iteration, user_feedback, shared_understanding, continue_conversations,
                                max_inner_iterations=effort_config['max_inner_iterations'],
-                               effort_config=effort_config, no_questions=no_questions)
+                               effort_config=effort_config, no_questions=no_questions,
+                               existing_plan=plan_for_iteration)
         all_results.append(results)
 
         if results["user_satisfied"]:
@@ -2103,6 +2140,8 @@ def main():
         print(f"  --init-from PATH|URL  Clone repo into workspace (local path or git URL)")
         print(f"  --env PATH            Copy .env file to workspace and load variables")
         print(f"  --prompt-file PATH    Read task description from file instead of command line")
+        print(f"  --plan-only           Run planner only, save plan, and exit for review")
+        print(f"  --plan PATH           Use existing plan file, skip planner stage")
         print(f"  --push                Push workspace changes (archives artifacts to logs/)")
         print(f"  --pr                  Create a GitHub pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
@@ -2151,6 +2190,8 @@ def main():
         print(f"  --init-from PATH|URL  Clone repo into workspace (local path or git URL)")
         print(f"  --env PATH            Copy .env file to workspace and load variables")
         print(f"  --prompt-file PATH    Read task description from file instead of command line")
+        print(f"  --plan-only           Run planner only, save plan, and exit for review")
+        print(f"  --plan PATH           Use existing plan file, skip planner stage")
         print(f"  --push                Push workspace changes (archives artifacts to logs/)")
         print(f"  --pr                  Create a GitHub pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
@@ -2329,6 +2370,25 @@ def main():
             print(f"Error: Prompt file not found: {prompt_file}")
             sys.exit(1)
 
+    # Handle --plan-only (run planner and exit)
+    plan_only = False
+    if "--plan-only" in args:
+        idx = args.index("--plan-only")
+        plan_only = True
+        args = args[:idx] + args[idx + 1:]
+
+    # Handle --plan PATH (use existing plan, skip planner)
+    existing_plan = None
+    if "--plan" in args:
+        idx = args.index("--plan")
+        plan_path = Path(args[idx + 1]).expanduser()
+        args = args[:idx] + args[idx + 2:]
+        if not plan_path.exists():
+            print(f"Error: Plan file not found: {plan_path}")
+            sys.exit(1)
+        existing_plan = plan_path.read_text()
+        print(f"Using existing plan from: {plan_path}")
+
     # Handle GitLab issue - fetch and use as task
     # Note: glab needs to run from within a git repo with GitLab remote
     gitlab_issue = None
@@ -2375,10 +2435,14 @@ def main():
             print("Error: No task specified. Use --gitlab-issue, --prompt-file, --continuous, or provide a task.")
             sys.exit(1)
 
-        result = run_pipeline(task, max_iterations, understanding_path, continue_conversations, effort, no_questions)
+        result = run_pipeline(task, max_iterations, understanding_path, continue_conversations, effort, no_questions,
+                              plan_only=plan_only, existing_plan=existing_plan)
 
         print(f"\nWorkspace: {result['workspace']}")
-        print(f"Run 'git log --oneline' in the workspace to see the commit history.")
+        if result.get("plan_only"):
+            print(f"Plan-only mode completed. Review the plan and run with --plan to continue.")
+        else:
+            print(f"Run 'git log --oneline' in the workspace to see the commit history.")
 
         # Handle GitLab MR creation
         if gitlab_mr and result.get("final_satisfied"):
