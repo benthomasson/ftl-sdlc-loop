@@ -35,7 +35,7 @@ from datetime import datetime
 from .agent import (
     run_agent, finalize_agent, log, log_separator, LOG_FILE,
     get_workspace_dir, get_agents_dir, set_workspace, get_workspace_name,
-    DEFAULT_WORKSPACE
+    DEFAULT_WORKSPACE, set_target_branch, get_target_branch
 )
 
 import time
@@ -197,6 +197,142 @@ def gitlab_find_mr_template(workspace: Path) -> Path | None:
     return None
 
 
+def check_gh_installed() -> bool:
+    """Check if gh CLI is installed and authenticated."""
+    try:
+        result = subprocess.run(
+            ["gh", "auth", "status"],
+            capture_output=True, text=True
+        )
+        return result.returncode == 0
+    except FileNotFoundError:
+        return False
+
+
+def github_fetch_issue(issue_number: int, repo: str | None = None, cwd: Path | None = None) -> dict | None:
+    """Fetch GitHub issue details via gh.
+
+    Args:
+        issue_number: The GitHub issue number
+        repo: Repository slug (owner/repo). If None, auto-detected from cwd.
+        cwd: Directory to run gh from (must be a git repo with GitHub remote)
+
+    Returns dict with 'number', 'title', 'body', 'labels', 'url' or None on error.
+    """
+    try:
+        cmd = ["gh", "issue", "view", str(issue_number), "--json",
+               "number,title,body,labels,url"]
+        if repo:
+            cmd.extend(["--repo", repo])
+        result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
+        if result.returncode != 0:
+            print(f"Error fetching issue #{issue_number}: {result.stderr}")
+            return None
+
+        data = json.loads(result.stdout)
+        return {
+            'number': data.get('number', issue_number),
+            'title': data.get('title', ''),
+            'body': data.get('body', ''),
+            'labels': [l.get('name', '') for l in data.get('labels', [])],
+            'url': data.get('url', ''),
+        }
+    except (FileNotFoundError, json.JSONDecodeError) as e:
+        print(f"Error fetching GitHub issue #{issue_number}: {e}")
+        return None
+
+
+def github_branch_name(issue: dict) -> str:
+    """Generate branch name from GitHub issue."""
+    number = issue['number']
+    title_slug = slugify(issue['title'], max_length=40)
+    return f"fix/issue-{number}-{title_slug}"
+
+
+def github_build_prompt(issue: dict) -> str:
+    """Build task prompt from GitHub issue."""
+    prompt = f"## {issue['title']}\n\n"
+    prompt += issue.get('body') or "(No description provided)"
+    prompt += f"\n\nCloses #{issue['number']}"
+    return prompt
+
+
+def github_fill_pr_template(
+    task: str,
+    github_issue: dict | None,
+    workspace: Path
+) -> str:
+    """Generate PR description using Claude with context from the workspace."""
+    env = os.environ.copy()
+    env.pop("CLAUDECODE", None)
+
+    context_parts = []
+
+    target = get_target_branch()
+    diff_result = subprocess.run(
+        ["git", "diff", f"origin/{target}..HEAD", "--", "src/", "tests/"],
+        cwd=workspace, env=env, capture_output=True, text=True
+    )
+    if diff_result.returncode == 0 and diff_result.stdout.strip():
+        diff_content = diff_result.stdout[:8000]
+        if len(diff_result.stdout) > 8000:
+            diff_content += "\n... (diff truncated)"
+        context_parts.append(f"## Git Diff\n```diff\n{diff_content}\n```")
+
+    plan_path = workspace / "PLAN.md"
+    if plan_path.exists():
+        plan_content = plan_path.read_text()[:3000]
+        context_parts.append(f"## PLAN.md\n{plan_content}")
+
+    review_path = workspace / "REVIEW.md"
+    if review_path.exists():
+        review_content = review_path.read_text()[:2000]
+        context_parts.append(f"## REVIEW.md\n{review_content}")
+
+    context = "\n\n---\n\n".join(context_parts)
+
+    issue_info = ""
+    if github_issue:
+        issue_info = f"\nThis addresses GitHub issue #{github_issue['number']}: {github_issue['title']}"
+        issue_info += f"\nInclude 'Closes #{github_issue['number']}' in the summary."
+
+    prompt = f"""Write a concise GitHub pull request description.
+
+## Original Task
+{task}
+{issue_info}
+
+## Context
+{context}
+
+---
+
+Instructions:
+1. Write a clear Summary section (2-3 sentences)
+2. Add a Changes section with bullet points of what changed
+3. Add a Test Plan section
+4. If this closes an issue, include "Closes #N"
+5. Add "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)" at the end
+
+Output ONLY the PR description, nothing else."""
+
+    print("  Using Claude to generate PR description...")
+    result = subprocess.run(
+        ["claude", "-p", prompt, "--output-format", "text"],
+        capture_output=True, text=True, env=env
+    )
+
+    if result.returncode != 0 or not result.stdout.strip():
+        print(f"  Warning: Claude failed to generate description, using fallback")
+        fallback = f"## Summary\n\n{task[:500]}\n\n"
+        if github_issue:
+            fallback += f"Closes #{github_issue['number']}\n\n"
+        fallback += "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)"
+        return fallback
+
+    return result.stdout.strip()
+
+
 def gitlab_fill_mr_template(
     template_content: str,
     task: str,
@@ -214,9 +350,10 @@ def gitlab_fill_mr_template(
     # Gather context for Claude
     context_parts = []
 
-    # Git diff for actual changes
+    # Git diff for actual changes (compare against origin's target branch)
+    target = get_target_branch()
     diff_result = subprocess.run(
-        ["git", "diff", "origin/main..HEAD", "--", "src/", "tests/"],
+        ["git", "diff", f"origin/{target}..HEAD", "--", "src/", "tests/"],
         cwd=workspace, env=env, capture_output=True, text=True
     )
     if diff_result.returncode == 0 and diff_result.stdout.strip():
@@ -571,11 +708,26 @@ def init_workspace_from(source: str) -> bool:
         print(f"Error: git clone failed: {result.stderr}")
         return False
 
-    # Create a working branch for multiagent-loop work
-    subprocess.run(
-        ["git", "checkout", "-b", "multiagent-work"],
-        cwd=workspace, env=env, capture_output=True
+    # Checkout the target branch (or create it if it doesn't exist)
+    target = get_target_branch()
+    # Check if branch exists on remote
+    result = subprocess.run(
+        ["git", "branch", "-r", "--list", f"origin/{target}"],
+        cwd=workspace, env=env, capture_output=True, text=True
     )
+    if target != "main" and result.stdout.strip():
+        # Branch exists on remote, check it out
+        subprocess.run(
+            ["git", "checkout", target],
+            cwd=workspace, env=env, capture_output=True
+        )
+    elif target != "main":
+        # Branch doesn't exist, create it from current HEAD
+        subprocess.run(
+            ["git", "checkout", "-b", target],
+            cwd=workspace, env=env, capture_output=True
+        )
+    # else: stay on main (default after clone)
 
     # For local repos (especially bare repos), copy their upstream remotes
     # This allows glab to detect the GitLab project
@@ -611,7 +763,7 @@ def init_workspace_from(source: str) -> bool:
 
     print(f"Workspace '{get_workspace_name()}' cloned from {source_str}")
     print(f"  Location: {workspace}")
-    print(f"  Branch: multiagent-work")
+    print(f"  Branch: {target}")
     print(f"  Use --push to push changes back when done")
     return True
 
@@ -1421,15 +1573,15 @@ QUESTION FOR HUMAN: [your question here]"""
 
 
 def process_agent_output(agent_name: str, output: str, iteration: int, no_questions: bool = False) -> str:
-    """Process agent output, checking for escalations, then merge to main."""
+    """Process agent output, checking for escalations, then merge to target branch."""
     escalation = check_for_escalation(output)
     if escalation:
         human_response = request_human_input(agent_name, escalation, iteration, no_questions)
         output += f"\n\n## Human Response\n\n{human_response}"
 
-    # Merge agent's branch back to main
+    # Merge agent's branch back to target branch
     if finalize_agent(agent_name):
-        print(f"  [Merged {agent_name} branch to main]")
+        print(f"  [Merged {agent_name} branch to {get_target_branch()}]")
 
     return output
 
@@ -2164,11 +2316,15 @@ def main():
         print(f"  --pr                  Create a GitHub pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
         print(f"  --no-questions        Disable all interactive prompts (auto-respond with defaults)")
+        print(f"  --branch NAME         Working branch for feature development (default: main)")
+        print(f"\nGitHub options:")
+        print(f"  --github-issue NUM    Fetch GitHub issue and use as task prompt")
+        print(f"  --github-repo SLUG    GitHub repo (owner/repo) for issue fetch (auto-detected if omitted)")
+        print(f"  --github-pr           Create GitHub pull request after successful run")
         print(f"\nGitLab options:")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
         print(f"  --gitlab-remote URL   Add GitLab remote (for bare repo workflows)")
-        print(f"  --branch NAME         Override auto-generated branch name")
         print(f"\nEffort levels:")
         print(f"  minimal  - Fast (~5-15 min): working solution, basic tests")
         print(f"  moderate - Balanced (~30-60 min): good practices, decent tests (default)")
@@ -2183,6 +2339,9 @@ def main():
         print(f"  {sys.argv[0]} 'write a function to calculate fibonacci numbers'")
         print(f"  {sys.argv[0]} --max-iterations 5 'complex feature'")
         print(f"  {sys.argv[0]} --continue 'fix the bug identified in the last run'")
+        print(f"\nGitHub workflow:")
+        print(f"  {sys.argv[0]} --workspace issue-42 --init-from ~/repo.git --github-issue 42")
+        print(f"  {sys.argv[0]} --workspace issue-42 --github-pr --push    # Push and create PR")
         print(f"\nGitLab workflow (bare repo):")
         print(f"  {sys.argv[0]} --workspace issue-285 --init-from ~/repo.git --gitlab-remote git@gitlab.com:org/repo.git --gitlab-issue 285")
         print(f"  {sys.argv[0]} --workspace issue-285 --gitlab-mr --push   # Push and create MR")
@@ -2214,10 +2373,13 @@ def main():
         print(f"  --pr                  Create a GitHub pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
         print(f"  --no-questions        Disable all interactive prompts (auto-respond with defaults)")
+        print(f"  --branch NAME         Working branch for feature development (default: main)")
+        print(f"  --github-issue NUM    Fetch GitHub issue and use as task prompt")
+        print(f"  --github-repo SLUG    GitHub repo (owner/repo) for issue fetch (auto-detected if omitted)")
+        print(f"  --github-pr           Create GitHub pull request after successful run")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
         print(f"  --gitlab-remote URL   Add GitLab remote (for bare repo workflows)")
-        print(f"  --branch NAME         Override auto-generated branch name")
         print(f"\nEffort levels:")
         print(f"  minimal  - Fast (~5-15 min): working solution, basic tests")
         print(f"  moderate - Balanced (~30-60 min): good practices, decent tests (default)")
@@ -2232,6 +2394,9 @@ def main():
         print(f"  {sys.argv[0]} --understanding ./context/ 'build feature'  # directory of docs")
         print(f"  {sys.argv[0]} --max-iterations 5 'complex feature'")
         print(f"  {sys.argv[0]} --continue 'fix the bug identified in the last run'")
+        print(f"\nGitHub workflow:")
+        print(f"  {sys.argv[0]} --workspace issue-42 --init-from ~/repo.git --github-issue 42")
+        print(f"  {sys.argv[0]} --workspace issue-42 --github-pr --push    # Push and create PR")
         print(f"\nGitLab workflow (bare repo):")
         print(f"  {sys.argv[0]} --workspace issue-285 --init-from ~/repo.git --gitlab-remote git@gitlab.com:org/repo.git --gitlab-issue 285")
         print(f"\nContinuous mode:")
@@ -2252,6 +2417,9 @@ def main():
     no_questions = False  # disable all user prompts
     gitlab_issue_number = None  # GitLab issue to fetch
     gitlab_mr = False  # Create GitLab MR after run
+    github_issue_number = None  # GitHub issue to fetch
+    github_issue_repo = None  # GitHub repo slug (owner/repo)
+    github_pr = False  # Create GitHub PR after run
     branch_name = None  # Override branch name
 
     if "--workspace" in args:
@@ -2295,6 +2463,32 @@ def main():
             print("Authenticate: glab auth login")
             sys.exit(1)
 
+    # GitHub integration flags
+    if "--github-issue" in args:
+        idx = args.index("--github-issue")
+        github_issue_number = int(args[idx + 1])
+        args = args[:idx] + args[idx + 2:]
+        if not check_gh_installed():
+            print("Error: gh CLI is not installed or not authenticated.")
+            print("Install: https://cli.github.com")
+            print("Authenticate: gh auth login")
+            sys.exit(1)
+
+    if "--github-repo" in args:
+        idx = args.index("--github-repo")
+        github_issue_repo = args[idx + 1]
+        args = args[:idx] + args[idx + 2:]
+
+    if "--github-pr" in args:
+        idx = args.index("--github-pr")
+        github_pr = True
+        args = args[:idx] + args[idx + 1:]
+        if not check_gh_installed():
+            print("Error: gh CLI is not installed or not authenticated.")
+            print("Install: https://cli.github.com")
+            print("Authenticate: gh auth login")
+            sys.exit(1)
+
     if "--branch" in args:
         idx = args.index("--branch")
         branch_name = args[idx + 1]
@@ -2309,6 +2503,10 @@ def main():
 
     # Set the workspace before any other operations
     set_workspace(workspace_name)
+
+    # Set the target branch for agent merges (default: main)
+    if branch_name:
+        set_target_branch(branch_name)
 
     # Handle --init-from early (initialize workspace, then continue if task provided)
     if "--init-from" in args:
@@ -2350,7 +2548,7 @@ def main():
             args.remove("--pr")
         if "--no-squash" in args:
             args.remove("--no-squash")
-        success = push_workspace(branch="main", create_pr=create_pr, squash=squash)
+        success = push_workspace(branch=get_target_branch(), create_pr=create_pr, squash=squash)
         sys.exit(0 if success else 1)
 
     if "--max-iterations" in args:
@@ -2429,6 +2627,24 @@ def main():
             branch_name = gitlab_branch_name(gitlab_issue)
             print(f"Branch: {branch_name}")
 
+    # Handle GitHub issue - fetch and use as task
+    github_issue = None
+    if github_issue_number:
+        workspace = get_workspace_dir()
+        if not workspace.exists() or not (workspace / ".git").exists():
+            print(f"Error: Workspace must be initialized with --init-from before using --github-issue")
+            sys.exit(1)
+        print(f"Fetching GitHub issue #{github_issue_number}...")
+        github_issue = github_fetch_issue(github_issue_number, repo=github_issue_repo, cwd=workspace)
+        if not github_issue:
+            print(f"Error: Could not fetch GitHub issue #{github_issue_number}")
+            sys.exit(1)
+        print(f"Issue: {github_issue['title']}")
+        # Generate branch name if not specified
+        if not branch_name:
+            branch_name = github_branch_name(github_issue)
+            print(f"Branch: {branch_name}")
+
     if continuous_mode:
         # Run in continuous mode
         run_continuous(
@@ -2440,17 +2656,20 @@ def main():
             no_questions=no_questions
         )
     else:
-        # Run single task - from GitLab issue, file, or command line
+        # Run single task - from issue, file, or command line
         if gitlab_issue:
             task = gitlab_build_prompt(gitlab_issue)
             print(f"Using GitLab issue #{gitlab_issue_number} as task")
+        elif github_issue:
+            task = github_build_prompt(github_issue)
+            print(f"Using GitHub issue #{github_issue_number} as task")
         elif prompt_file:
             task = prompt_file.read_text().strip()
             print(f"Read task from: {prompt_file}")
         else:
             task = " ".join(args)
         if not task:
-            print("Error: No task specified. Use --gitlab-issue, --prompt-file, --continuous, or provide a task.")
+            print("Error: No task specified. Use --github-issue, --gitlab-issue, --prompt-file, --continuous, or provide a task.")
             sys.exit(1)
 
         result = run_pipeline(task, max_iterations, understanding_path, continue_conversations, effort, no_questions,
@@ -2512,7 +2731,7 @@ def main():
                     source_branch=mr_branch,
                     title=mr_title,
                     description=mr_description,
-                    target_branch="main",
+                    target_branch=get_target_branch(),
                     assignee=gitlab_get_username(),
                     cwd=workspace
                 )
@@ -2520,6 +2739,51 @@ def main():
                     print(f"Merge request created: {mr_url}")
         elif gitlab_mr and not result.get("final_satisfied"):
             print(f"\nSkipping MR creation - pipeline did not complete successfully")
+
+        # Handle GitHub PR creation
+        if github_pr and result.get("final_satisfied"):
+            print(f"\nCreating GitHub pull request...")
+            workspace = get_workspace_dir()
+            env = os.environ.copy()
+            env.pop("CLAUDECODE", None)
+
+            pr_branch = branch_name or "multiagent-work"
+
+            subprocess.run(
+                ["git", "checkout", "-B", pr_branch],
+                cwd=workspace, env=env, capture_output=True
+            )
+
+            print(f"Pushing branch {pr_branch}...")
+            push_result = subprocess.run(
+                ["git", "push", "-u", "origin", pr_branch],
+                cwd=workspace, env=env, capture_output=True, text=True
+            )
+            if push_result.returncode != 0:
+                print(f"Error pushing branch: {push_result.stderr}")
+            else:
+                pr_title = github_issue['title'] if github_issue else task[:70]
+                pr_description = github_fill_pr_template(
+                    task=task,
+                    github_issue=github_issue,
+                    workspace=workspace
+                )
+
+                repo_flag = ["--repo", github_issue_repo] if github_issue_repo else []
+                pr_result = subprocess.run(
+                    ["gh", "pr", "create",
+                     "--title", pr_title,
+                     "--body", pr_description,
+                     "--base", get_target_branch(),
+                     "--head", pr_branch] + repo_flag,
+                    cwd=workspace, env=env, capture_output=True, text=True
+                )
+                if pr_result.returncode == 0:
+                    print(f"Pull request created: {pr_result.stdout.strip()}")
+                else:
+                    print(f"Error creating PR: {pr_result.stderr}")
+        elif github_pr and not result.get("final_satisfied"):
+            print(f"\nSkipping PR creation - pipeline did not complete successfully")
 
 
 if __name__ == "__main__":
