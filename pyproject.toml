@@ -18,7 +18,7 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "beliefs @ git+https://github.com/benthomasson/beliefs",
+    "ftl-beliefs @ git+https://github.com/benthomasson/beliefs",
 ]
 
 [project.urls]
