@@ -768,6 +768,113 @@ def init_workspace_from(source: str) -> bool:
     return True
 
 
+ARTIFACT_PATTERNS = [
+    # Legacy non-versioned files
+    "TASK.md", "PLAN.md", "IMPLEMENTATION.md", "REVIEW.md", "USAGE.md",
+    "USER_FEEDBACK.md", "FINAL_REPORT.md", "CUMULATIVE_UNDERSTANDING.md",
+    # Versioned artifacts (PLAN_1.md, IMPLEMENTATION_1_2.md, etc.)
+    "PLAN_*.md", "IMPLEMENTATION_*.md", "REVIEW_*.md", "TESTER_*.md",
+    "USER_FEEDBACK_*.md",
+    # Other patterns
+    "ITERATION_*.md", "planner/", "implementer/", "reviewer/", "user/",
+    "tester/USAGE.md", "tester/*.md",  # Keep tester/test_*.py
+    "entries/", "beliefs.md", "nogoods.md"
+]
+
+
+def clean_workspace_artifacts(workspace: Path) -> None:
+    """Remove SDLC artifact files from workspace, archiving them first.
+
+    Moves any test_*.py files from tester/ to tests/ (fixing sys.path hacks),
+    archives all artifacts to logs/, then removes them from the git tree.
+    """
+    import glob
+    import tarfile
+    from datetime import datetime as dt
+
+    env = os.environ.copy()
+    env.pop("CLAUDECODE", None)
+
+    # Move tester/test_*.py to tests/ before cleanup
+    tester_dir = workspace / "tester"
+    tests_dir = workspace / "tests"
+    if tester_dir.exists():
+        test_files = list(tester_dir.glob("test_*.py"))
+        if test_files:
+            tests_dir.mkdir(parents=True, exist_ok=True)
+            for tf in test_files:
+                # Clean sys.path hacks from test files
+                content = tf.read_text()
+                cleaned_lines = []
+                for line in content.splitlines():
+                    if line.strip().startswith("sys.path.insert(") or \
+                       (line.strip() == "import sys" and "sys.path.insert(" in content):
+                        continue
+                    cleaned_lines.append(line)
+                dest = tests_dir / tf.name
+                if not dest.exists():
+                    dest.write_text("\n".join(cleaned_lines) + "\n")
+                    print(f"  Moved {tf.name} to tests/")
+                    subprocess.run(
+                        ["git", "add", str(dest.relative_to(workspace))],
+                        cwd=workspace, env=env, capture_output=True
+                    )
+                # Remove original from tester/
+                tf.unlink()
+                subprocess.run(
+                    ["git", "rm", "-f", str(tf.relative_to(workspace))],
+                    cwd=workspace, env=env, capture_output=True
+                )
+
+    # Collect all artifact files that exist
+    artifact_files = []
+    for pattern in ARTIFACT_PATTERNS:
+        for path in glob.glob(str(workspace / pattern)):
+            artifact_files.append(Path(path))
+
+    if not artifact_files:
+        print("No artifacts to clean.")
+        return
+
+    # Archive before removing
+    logs_dir = Path.cwd() / "logs"
+    logs_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
+    workspace_name = get_workspace_name()
+    tarball_name = f"{workspace_name}_{timestamp}_artifacts.tar.gz"
+    tarball_path = logs_dir / tarball_name
+
+    print(f"Archiving {len(artifact_files)} artifact files to {tarball_path}...")
+    with tarfile.open(tarball_path, "w:gz") as tar:
+        for artifact_path in artifact_files:
+            arcname = artifact_path.relative_to(workspace)
+            if artifact_path.is_dir():
+                tar.add(artifact_path, arcname=arcname)
+            elif artifact_path.exists():
+                tar.add(artifact_path, arcname=arcname)
+    print(f"  Archived to: {tarball_path}")
+
+    # Remove artifact files
+    print(f"Cleaning {len(artifact_files)} artifact files...")
+    import shutil
+    for p in artifact_files:
+        if p.is_dir():
+            shutil.rmtree(p)
+            subprocess.run(["git", "rm", "-rf", str(p.relative_to(workspace))],
+                         cwd=workspace, env=env, capture_output=True)
+        elif p.exists():
+            p.unlink()
+            subprocess.run(["git", "rm", "-f", str(p.relative_to(workspace))],
+                         cwd=workspace, env=env, capture_output=True)
+
+    # Remove empty tester/ directory
+    if tester_dir.exists() and not any(tester_dir.iterdir()):
+        tester_dir.rmdir()
+        subprocess.run(["git", "rm", "-rf", "tester"],
+                     cwd=workspace, env=env, capture_output=True)
+
+
 def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool = True) -> bool:
     """Push workspace changes back to the remote repository.
 
@@ -795,66 +902,7 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
     else:
         task_desc = "multiagent-loop changes"
 
-    # Artifact files/directories to remove before pushing
-    # Artifact files to remove - preserve test_*.py files
-    ARTIFACT_PATTERNS = [
-        # Legacy non-versioned files
-        "TASK.md", "PLAN.md", "IMPLEMENTATION.md", "REVIEW.md", "USAGE.md",
-        "USER_FEEDBACK.md", "FINAL_REPORT.md", "CUMULATIVE_UNDERSTANDING.md",
-        # Versioned artifacts (PLAN_1.md, IMPLEMENTATION_1_2.md, etc.)
-        "PLAN_*.md", "IMPLEMENTATION_*.md", "REVIEW_*.md", "TESTER_*.md",
-        "USER_FEEDBACK_*.md",
-        # Other patterns
-        "ITERATION_*.md", "planner/", "implementer/", "reviewer/", "user/",
-        "tester/USAGE.md", "tester/*.md",  # Keep tester/test_*.py
-        "entries/", "beliefs.md", "nogoods.md"
-    ]
-
-    # Archive artifact files before removing
-    import glob
-    import tarfile
-    from datetime import datetime as dt
-
-    # Collect all artifact files that exist
-    artifact_files = []
-    for pattern in ARTIFACT_PATTERNS:
-        for path in glob.glob(str(workspace / pattern)):
-            artifact_files.append(Path(path))
-
-    if artifact_files:
-        # Create logs directory relative to cwd (where multiagent-loop runs from)
-        logs_dir = Path.cwd() / "logs"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-
-        # Create timestamped tarball
-        timestamp = dt.now().strftime("%Y%m%d_%H%M%S")
-        workspace_name = get_workspace_name()
-        tarball_name = f"{workspace_name}_{timestamp}_artifacts.tar.gz"
-        tarball_path = logs_dir / tarball_name
-
-        print(f"Archiving {len(artifact_files)} artifact files to {tarball_path}...")
-        with tarfile.open(tarball_path, "w:gz") as tar:
-            for artifact_path in artifact_files:
-                # Store with path relative to workspace
-                arcname = artifact_path.relative_to(workspace)
-                if artifact_path.is_dir():
-                    tar.add(artifact_path, arcname=arcname)
-                elif artifact_path.exists():
-                    tar.add(artifact_path, arcname=arcname)
-        print(f"  Archived to: {tarball_path}")
-
-    # Remove artifact files (reuse collected list)
-    print("Cleaning up artifact files...")
-    import shutil
-    for p in artifact_files:
-        if p.is_dir():
-            shutil.rmtree(p)
-            subprocess.run(["git", "rm", "-rf", str(p.relative_to(workspace))],
-                         cwd=workspace, env=env, capture_output=True)
-        elif p.exists():
-            p.unlink()
-            subprocess.run(["git", "rm", "-f", str(p.relative_to(workspace))],
-                         cwd=workspace, env=env, capture_output=True)
+    clean_workspace_artifacts(workspace)
 
     # Check for any uncommitted changes (including deletions)
     result = subprocess.run(
@@ -2315,6 +2363,7 @@ def main():
         print(f"  --push                Push workspace changes (archives artifacts to logs/)")
         print(f"  --pr                  Create a GitHub pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
+        print(f"  --clean               Strip SDLC artifacts before push/PR/MR (or standalone)")
         print(f"  --no-questions        Disable all interactive prompts (auto-respond with defaults)")
         print(f"  --branch NAME         Working branch for feature development (default: main)")
         print(f"\nGitHub options:")
@@ -2372,6 +2421,7 @@ def main():
         print(f"  --push                Push workspace changes (archives artifacts to logs/)")
         print(f"  --pr                  Create a GitHub pull request instead of pushing directly")
         print(f"  --no-squash           Don't squash commits when pushing (default: squash)")
+        print(f"  --clean               Strip SDLC artifacts before push/PR/MR (or standalone)")
         print(f"  --no-questions        Disable all interactive prompts (auto-respond with defaults)")
         print(f"  --branch NAME         Working branch for feature development (default: main)")
         print(f"  --github-issue NUM    Fetch GitHub issue and use as task prompt")
@@ -2420,6 +2470,7 @@ def main():
     github_issue_number = None  # GitHub issue to fetch
     github_issue_repo = None  # GitHub repo slug (owner/repo)
     github_pr = False  # Create GitHub PR after run
+    clean_artifacts = False  # Strip SDLC artifacts before push
     branch_name = None  # Override branch name
 
     if "--workspace" in args:
@@ -2489,6 +2540,11 @@ def main():
             print("Authenticate: gh auth login")
             sys.exit(1)
 
+    if "--clean" in args:
+        idx = args.index("--clean")
+        clean_artifacts = True
+        args = args[:idx] + args[idx + 1:]
+
     if "--branch" in args:
         idx = args.index("--branch")
         branch_name = args[idx + 1]
@@ -2537,6 +2593,31 @@ def main():
         success = load_env_file(env_path)
         if not success:
             sys.exit(1)
+
+    # Handle --clean as standalone command (clean artifacts without pushing)
+    if clean_artifacts and "--push" not in args and "--pr" not in args \
+       and not github_pr and not gitlab_mr and not github_issue_number and not gitlab_issue_number:
+        workspace = get_workspace_dir()
+        if not workspace.exists() or not (workspace / ".git").exists():
+            print(f"Error: Workspace '{get_workspace_name()}' is not a git repository")
+            sys.exit(1)
+        env = os.environ.copy()
+        env.pop("CLAUDECODE", None)
+        clean_workspace_artifacts(workspace)
+        subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
+        result = subprocess.run(
+            ["git", "status", "--porcelain"],
+            cwd=workspace, env=env, capture_output=True, text=True
+        )
+        if result.stdout.strip():
+            subprocess.run(
+                ["git", "commit", "-m", "[multiagent-loop] Clean up SDLC artifacts"],
+                cwd=workspace, env=env, capture_output=True
+            )
+            print("Committed artifact cleanup.")
+        else:
+            print("No artifacts to clean.")
+        sys.exit(0)
 
     # Handle --push and --pr early (they exit after completing)
     if "--push" in args or "--pr" in args:
@@ -2688,6 +2769,14 @@ def main():
             env = os.environ.copy()
             env.pop("CLAUDECODE", None)
 
+            if clean_artifacts:
+                clean_workspace_artifacts(workspace)
+                subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
+                subprocess.run(
+                    ["git", "commit", "-m", "[multiagent-loop] Clean up artifacts"],
+                    cwd=workspace, env=env, capture_output=True
+                )
+
             # Determine branch name
             mr_branch = branch_name or "multiagent-work"
 
@@ -2746,6 +2835,14 @@ def main():
             workspace = get_workspace_dir()
             env = os.environ.copy()
             env.pop("CLAUDECODE", None)
+
+            if clean_artifacts:
+                clean_workspace_artifacts(workspace)
+                subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
+                subprocess.run(
+                    ["git", "commit", "-m", "[multiagent-loop] Clean up artifacts"],
+                    cwd=workspace, env=env, capture_output=True
+                )
 
             pr_branch = branch_name or "multiagent-work"
 
