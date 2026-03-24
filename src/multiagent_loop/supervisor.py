@@ -2526,7 +2526,7 @@ def main():
                 cwd=workspace, env=env, capture_output=True
             )
             print(f"  Added 'gitlab' remote: {gitlab_remote_url}")
-        if not args:
+        if not args and not gitlab_issue_number and not github_issue_number and not continuous_mode:
             sys.exit(0)
 
     # Handle --env early (load environment variables before running agents)
