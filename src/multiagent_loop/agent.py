@@ -61,6 +61,22 @@ def get_agents_dir(workspace_name: str | None = None) -> Path:
     name = workspace_name or _current_workspace
     return BASE_DIR / "agents" / name
 
+
+# Target branch for agent merges (default: main)
+_target_branch = "main"
+
+
+def set_target_branch(branch: str) -> None:
+    """Set the target branch for agent merges."""
+    global _target_branch
+    _target_branch = branch
+
+
+def get_target_branch() -> str:
+    """Get the target branch for agent merges."""
+    return _target_branch
+
+
 # Logging
 VERBOSE = True
 _log_file_handle = None
@@ -255,9 +271,9 @@ def setup_agent_branch(role: str) -> Path:
         log(f"Checking out existing branch: {role}")
         git_cmd(["checkout", role], workspace)
 
-    # Merge latest from main
-    log(f"Merging latest from main into {role}")
-    result = git_cmd(["merge", "main", "--no-edit"], workspace)
+    # Merge latest from target branch
+    log(f"Merging latest from {_target_branch} into {role}")
+    result = git_cmd(["merge", _target_branch, "--no-edit"], workspace)
     if result.returncode != 0:
         log(f"Merge warning: {result.stderr}", "WARN")
 
@@ -285,17 +301,17 @@ def commit_agent_work(role: str, message: str) -> bool:
 
 
 def merge_to_main(role: str) -> bool:
-    """Merge agent's branch back to main."""
+    """Merge agent's branch back to the target branch."""
     workspace = get_workspace_dir()
-    log(f"Merging {role} branch back to main")
+    log(f"Merging {role} branch back to {_target_branch}")
 
-    # Switch to main
-    git_cmd(["checkout", "main"], workspace)
+    # Switch to target branch
+    git_cmd(["checkout", _target_branch], workspace)
 
     # Merge agent's branch
     result = git_cmd(["merge", role, "--no-edit"], workspace)
     if result.returncode == 0:
-        log(f"Successfully merged {role} to main")
+        log(f"Successfully merged {role} to {_target_branch}")
     else:
         log(f"Merge failed: {result.stderr}", "ERROR")
     return result.returncode == 0

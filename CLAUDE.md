@@ -19,6 +19,10 @@ uv run supervisor.py --workspace iris "add a new feature"         # Work on it
 uv run supervisor.py --workspace iris --push                      # Push changes back (archives artifacts to logs/)
 uv run supervisor.py --workspace iris --pr                        # Or create a PR
 
+# Feature branches - work on a branch other than main
+uv run supervisor.py --workspace feature-x --init-from /path/to/repo --branch feature-x "implement feature"
+uv run supervisor.py --workspace feature-x --branch feature-x --push  # Push to feature branch
+
 # Environment variables - load secrets for agents
 uv run supervisor.py --workspace myproject --env ~/.secrets/myproject.env "build API integration"
 
