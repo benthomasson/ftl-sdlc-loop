@@ -826,10 +826,37 @@ def clean_workspace_artifacts(workspace: Path) -> None:
                     cwd=workspace, env=env, capture_output=True
                 )
 
-    # Collect all artifact files that exist
+    # Find files that existed in the upstream repo before the loop started
+    # These should NOT be cleaned even if they match artifact patterns
+    upstream_files = set()
+    result = subprocess.run(
+        ["git", "log", "--diff-filter=A", "--name-only", "--pretty=format:"],
+        capture_output=True, text=True, cwd=workspace, env=env,
+    )
+    # Files that existed before our first commit are NOT in the added-files list
+    # Simpler: check what exists on the base branch (origin/main or gitlab/main)
+    for remote in ["origin/main", "gitlab/main", "origin/master", "gitlab/master"]:
+        result = subprocess.run(
+            ["git", "ls-tree", "-r", "--name-only", remote],
+            capture_output=True, text=True, cwd=workspace, env=env,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            upstream_files = set(result.stdout.strip().splitlines())
+            break
+
+    # Collect all artifact files that exist, excluding upstream files
     artifact_files = []
     for pattern in ARTIFACT_PATTERNS:
         for path in glob.glob(str(workspace / pattern)):
+            rel = str(Path(path).relative_to(workspace))
+            # Skip files/dirs that existed in upstream
+            if rel in upstream_files:
+                continue
+            # For directories, check if any file inside existed upstream
+            if Path(path).is_dir():
+                has_upstream = any(f.startswith(rel + "/") for f in upstream_files)
+                if has_upstream:
+                    continue
             artifact_files.append(Path(path))
 
     if not artifact_files:
