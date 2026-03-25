@@ -3,20 +3,24 @@ revision = 3
 requires-python = ">=3.11"
 
 [[package]]
-name = "beliefs"
-version = "0.1.0"
-source = { git = "https://github.com/benthomasson/beliefs#d49bd496f4448ff0984e2d195db13998e3e65974" }
+name = "ftl-beliefs"
+version = "0.2.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/03/50/3cef44cac5c6117d6902998eb27fa64c17315169e8507c3a5b6ac77b08b0/ftl_beliefs-0.2.0.tar.gz", hash = "sha256:84eea030d3919f5c900b51e31bff163f9c161516a7eb1b00b7b89fb0bc3afdfd", size = 104091, upload-time = "2026-03-23T07:54:17.066Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/59/99/e35451ee91ddc179d582f141adaf83521bedc6538272cb55e9dfec00dfd7/ftl_beliefs-0.2.0-py3-none-any.whl", hash = "sha256:2a4f3540b32eae5e6bc06c819020aed4e1e366471e1f257477876de25e75cc31", size = 29425, upload-time = "2026-03-23T07:54:16.244Z" },
+]
 
 [[package]]
-name = "multiagent-loop"
-version = "0.1.0"
+name = "ftl-sdlc-loop"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
-    { name = "beliefs" },
+    { name = "ftl-beliefs" },
 ]
 
 [package.metadata]
-requires-dist = [{ name = "beliefs", git = "https://github.com/benthomasson/beliefs" }]
+requires-dist = [{ name = "ftl-beliefs" }]
 
 [package.metadata.requires-dev]
 dev = []

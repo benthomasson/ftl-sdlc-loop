@@ -1,5 +1,5 @@
 [project]
-name = "multiagent-loop"
+name = "ftl-sdlc-loop"
 version = "0.3.0"
 description = "Autonomous multi-agent software development system"
 readme = "README.md"
@@ -18,16 +18,16 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 dependencies = [
-    "ftl-beliefs @ git+https://github.com/benthomasson/beliefs",
+    "ftl-beliefs",
 ]
 
 [project.urls]
-Homepage = "https://github.com/benthomasson/multiagent-loop"
-Repository = "https://github.com/benthomasson/multiagent-loop"
-Issues = "https://github.com/benthomasson/multiagent-loop/issues"
+Homepage = "https://github.com/benthomasson/ftl-sdlc-loop"
+Repository = "https://github.com/benthomasson/ftl-sdlc-loop"
+Issues = "https://github.com/benthomasson/ftl-sdlc-loop/issues"
 
 [project.scripts]
-multiagent-loop = "multiagent_loop.supervisor:main"
+ftl-sdlc-loop = "ftl_sdlc_loop.supervisor:main"
 
 [build-system]
 requires = ["hatchling"]

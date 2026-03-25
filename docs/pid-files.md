@@ -9,7 +9,7 @@ Each agent process writes a PID (Process ID) file when it starts, allowing you t
 PID files are stored in the `/pids/` directory:
 
 ```
-multiagent-loop/
+ftl-sdlc-loop/
 ├── pids/
 │   ├── planner.pid
 │   ├── implementer.pid

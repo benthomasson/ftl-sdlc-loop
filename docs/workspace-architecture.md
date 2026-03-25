@@ -12,7 +12,7 @@ This design prevents agents from interfering with each other and creates a clear
 ## Directory Structure
 
 ```
-multiagent-loop/
+ftl-sdlc-loop/
 ├── agents/                    # Session directories (conversation isolation)
 │   ├── planner/
 │   ├── implementer/

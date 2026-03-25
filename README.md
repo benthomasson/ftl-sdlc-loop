@@ -1,11 +1,11 @@
-# Multi-Agent Development Loop
+# FTL SDLC Loop
 
 A multi-agent automated software development system using Claude CLI.
 
 ## Quick Start (No Install)
 
 ```bash
-uvx --from git+https://github.com/benthomasson/multiagent-loop multiagent-loop --help
+uvx --from git+https://github.com/benthomasson/ftl-sdlc-loop ftl-sdlc-loop --help
 ```
 
 ## Philosophy: Claude Is Your User
@@ -193,10 +193,10 @@ This surfaces friction points and improvement ideas throughout the pipeline, not
 mkdir my-project && cd my-project
 
 # Run a task
-multiagent-loop --workspace fibonacci "write a function to calculate fibonacci numbers"
+ftl-sdlc-loop --workspace fibonacci "write a function to calculate fibonacci numbers"
 
 # Fast mode for simple tasks
-multiagent-loop --workspace two-sum --effort minimal --no-questions "solve the two-sum problem"
+ftl-sdlc-loop --workspace two-sum --effort minimal --no-questions "solve the two-sum problem"
 ```
 
 ### Effort Levels
@@ -205,20 +205,20 @@ Control thoroughness vs speed:
 
 ```bash
 # Fast (~2-5 min): 3 agents, skip review, basic tests
-multiagent-loop --effort minimal "solve two-sum"
+ftl-sdlc-loop --effort minimal "solve two-sum"
 
 # Balanced (~30-60 min): 4 agents, code review, decent tests (default)
-multiagent-loop --effort moderate "build a REST API"
+ftl-sdlc-loop --effort moderate "build a REST API"
 
 # Production (~2-3 hours): full 5-agent pipeline, comprehensive testing
-multiagent-loop --effort maximum "implement authentication"
+ftl-sdlc-loop --effort maximum "implement authentication"
 ```
 
 ### Batch Processing
 
 ```bash
 # Fully automated — no interactive prompts
-multiagent-loop --workspace my-task --effort minimal --no-questions "solve the problem"
+ftl-sdlc-loop --workspace my-task --effort minimal --no-questions "solve the problem"
 ```
 
 The `--no-questions` flag auto-responds to all agent escalations, ensuring the system never blocks waiting for input. Combined with `--effort minimal`, this enables fully unattended batch processing.
@@ -227,15 +227,15 @@ The `--no-questions` flag auto-responds to all agent escalations, ensuring the s
 
 ```bash
 # Clone a repo into a workspace
-multiagent-loop --workspace iris --init-from git@github.com:user/iris.git
+ftl-sdlc-loop --workspace iris --init-from git@github.com:user/iris.git
 
 # Work on it
-multiagent-loop --workspace iris "add a new feature"
-multiagent-loop --workspace iris --continue "fix the bug from last run"
+ftl-sdlc-loop --workspace iris "add a new feature"
+ftl-sdlc-loop --workspace iris --continue "fix the bug from last run"
 
 # Push changes back (artifacts archived to logs/)
-multiagent-loop --workspace iris --push    # Push directly
-multiagent-loop --workspace iris --pr      # Or create a PR
+ftl-sdlc-loop --workspace iris --push    # Push directly
+ftl-sdlc-loop --workspace iris --pr      # Or create a PR
 ```
 
 Workspaces are created in `workspaces/{name}/` relative to where you run the command.
@@ -248,10 +248,10 @@ Load secrets and configuration for agents:
 
 ```bash
 # Load .env file into workspace and environment
-multiagent-loop --workspace myproject --env ~/.secrets/myproject.env "build API integration"
+ftl-sdlc-loop --workspace myproject --env ~/.secrets/myproject.env "build API integration"
 
 # Can combine with --init-from
-multiagent-loop --workspace iris --init-from ~/git/iris --env ~/iris.env "add OAuth support"
+ftl-sdlc-loop --workspace iris --init-from ~/git/iris --env ~/iris.env "add OAuth support"
 ```
 
 The `.env` file is:
@@ -267,14 +267,14 @@ For bigger projects, review the plan before implementation:
 
 ```bash
 # Step 1: Generate plan only
-multiagent-loop --workspace myproject --plan-only "build a REST API with authentication"
+ftl-sdlc-loop --workspace myproject --plan-only "build a REST API with authentication"
 
 # Step 2: Review and edit the plan
 cat workspaces/myproject/PLAN.md
 # Edit if needed...
 
 # Step 3: Run with the reviewed plan
-multiagent-loop --workspace myproject --plan workspaces/myproject/PLAN.md "build a REST API with authentication"
+ftl-sdlc-loop --workspace myproject --plan workspaces/myproject/PLAN.md "build a REST API with authentication"
 ```
 
 The `--plan-only` flag runs only the planner, saves `PLAN.md`, and exits for human review.
@@ -299,7 +299,7 @@ Use SQLite for storage. Include input validation and proper error responses.
 EOF
 
 # Run with the task file
-multiagent-loop --workspace user-api --prompt-file task.md
+ftl-sdlc-loop --workspace user-api --prompt-file task.md
 ```
 
 ### GitLab Integration
@@ -308,20 +308,20 @@ Work on GitLab issues directly:
 
 ```bash
 # Clone from GitLab directly (glab auto-detects project)
-multiagent-loop --workspace issue-285 \
+ftl-sdlc-loop --workspace issue-285 \
   --init-from git@gitlab.com:org/repo.git \
   --gitlab-issue 285 \
   --effort minimal
 
 # Or clone from local bare repo with explicit GitLab remote
-multiagent-loop --workspace issue-285 \
+ftl-sdlc-loop --workspace issue-285 \
   --init-from ~/git/repo.git \
   --gitlab-remote git@gitlab.com:org/repo.git \
   --gitlab-issue 285 \
   --effort minimal
 
 # After completion, create merge request
-multiagent-loop --workspace issue-285 --gitlab-mr --push
+ftl-sdlc-loop --workspace issue-285 --gitlab-mr --push
 ```
 
 **GitLab flags:**
@@ -361,7 +361,7 @@ Process tasks from a queue file, running unattended:
 echo "write a hello world function" > queue.txt
 echo "add error handling" >> queue.txt
 
-multiagent-loop --continuous --effort minimal --no-questions
+ftl-sdlc-loop --continuous --effort minimal --no-questions
 ```
 
 ### Shared Understanding
@@ -369,7 +369,7 @@ multiagent-loop --continuous --effort minimal --no-questions
 Build context before development:
 
 ```bash
-multiagent-loop --understanding docs/SHARED_UNDERSTANDING.md "build the feature"
+ftl-sdlc-loop --understanding docs/SHARED_UNDERSTANDING.md "build the feature"
 ```
 
 ### View Results
@@ -386,14 +386,14 @@ cat implementer/*.py       # Generated code
 ### Package (installed via uvx)
 
 ```
-src/multiagent_loop/
+src/ftl_sdlc_loop/
 ├── __init__.py        # Package metadata
 ├── supervisor.py      # Pipeline orchestrator with feedback loop
 ├── agent.py           # Agent runner utility
 └── understand.py      # Phase 0: Shared understanding builder
 ```
 
-### Runtime (created in cwd when you run multiagent-loop)
+### Runtime (created in cwd when you run ftl-sdlc-loop)
 
 ```
 your-project/
@@ -478,19 +478,19 @@ The `beliefs` library is a required dependency — it's declared in supervisor.p
 
 ```bash
 # Install as a CLI tool
-uv tool install git+https://github.com/benthomasson/multiagent-loop
+uv tool install git+https://github.com/benthomasson/ftl-sdlc-loop
 
 # Then use it anywhere
-multiagent-loop "write a function to calculate fibonacci numbers"
-multiagent-loop --workspace myproject --init-from /path/to/repo
+ftl-sdlc-loop "write a function to calculate fibonacci numbers"
+ftl-sdlc-loop --workspace myproject --init-from /path/to/repo
 ```
 
 Or run directly without installing:
 
 ```bash
 # Clone and run with uv
-git clone https://github.com/benthomasson/multiagent-loop
-cd multiagent-loop
+git clone https://github.com/benthomasson/ftl-sdlc-loop
+cd ftl-sdlc-loop
 uv run supervisor.py "your task here"
 ```
 

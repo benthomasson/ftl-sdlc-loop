@@ -312,7 +312,7 @@ Instructions:
 2. Add a Changes section with bullet points of what changed
 3. Add a Test Plan section
 4. If this closes an issue, include "Closes #N"
-5. Add "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)" at the end
+5. Add "🤖 Generated with [ftl-sdlc-loop](https://github.com/benthomasson/ftl-sdlc-loop)" at the end
 
 Output ONLY the PR description, nothing else."""
 
@@ -327,7 +327,7 @@ Output ONLY the PR description, nothing else."""
         fallback = f"## Summary\n\n{task[:500]}\n\n"
         if github_issue:
             fallback += f"Closes #{github_issue['number']}\n\n"
-        fallback += "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)"
+        fallback += "🤖 Generated with [ftl-sdlc-loop](https://github.com/benthomasson/ftl-sdlc-loop)"
         return fallback
 
     return result.stdout.strip()
@@ -408,7 +408,7 @@ Instructions:
 2. For "Type of Change" checkboxes, mark the appropriate one with [x]
 3. Be concise but informative - this is for code reviewers
 4. Keep the original template structure and headings
-5. Add "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)" at the end
+5. Add "🤖 Generated with [ftl-sdlc-loop](https://github.com/benthomasson/ftl-sdlc-loop)" at the end
 
 Output ONLY the filled-in template, nothing else."""
 
@@ -425,7 +425,7 @@ Output ONLY the filled-in template, nothing else."""
         fallback = f"## Description\n\n{task[:500]}\n\n"
         if gitlab_issue:
             fallback += f"Closes #{gitlab_issue['number']}\n\n"
-        fallback += "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)"
+        fallback += "🤖 Generated with [ftl-sdlc-loop](https://github.com/benthomasson/ftl-sdlc-loop)"
         return fallback
 
     return result.stdout.strip()
@@ -925,9 +925,9 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
         lines = task_file.read_text().strip().splitlines()
         # Skip header and blank lines, stop before "Started:" metadata
         desc_lines = [l for l in lines if l and not l.startswith("# ") and not l.startswith("Started:")]
-        task_desc = "\n".join(desc_lines)[:200] or "multiagent-loop changes"
+        task_desc = "\n".join(desc_lines)[:200] or "ftl-sdlc-loop changes"
     else:
-        task_desc = "multiagent-loop changes"
+        task_desc = "ftl-sdlc-loop changes"
 
     clean_workspace_artifacts(workspace)
 
@@ -939,7 +939,7 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
     if result.stdout.strip():
         subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
         subprocess.run(
-            ["git", "commit", "-m", "[multiagent-loop] Clean up artifacts"],
+            ["git", "commit", "-m", "[ftl-sdlc-loop] Clean up artifacts"],
             cwd=workspace, env=env, capture_output=True
         )
 
@@ -950,7 +950,7 @@ def push_workspace(branch: str = "main", create_pr: bool = False, squash: bool =
     )
     current_branch = result.stdout.strip()
 
-    # Find the original commit before multiagent-loop started
+    # Find the original commit before ftl-sdlc-loop started
     result = subprocess.run(
         ["git", "log", "--oneline", f"origin/{branch}..HEAD"],
         cwd=workspace, env=env, capture_output=True, text=True
@@ -2368,7 +2368,7 @@ def run_continuous(queue_path: Path, max_iterations: int = 3,
 
 
 def main():
-    """Main entry point for the multiagent-loop CLI."""
+    """Main entry point for the ftl-sdlc-loop CLI."""
     # Handle --help / -h explicitly to prevent it being treated as a task
     if "-h" in sys.argv or "--help" in sys.argv:
         print(f"Usage: {sys.argv[0]} <task description> [options]")
@@ -2638,7 +2638,7 @@ def main():
         )
         if result.stdout.strip():
             subprocess.run(
-                ["git", "commit", "-m", "[multiagent-loop] Clean up SDLC artifacts"],
+                ["git", "commit", "-m", "[ftl-sdlc-loop] Clean up SDLC artifacts"],
                 cwd=workspace, env=env, capture_output=True
             )
             print("Committed artifact cleanup.")
@@ -2800,7 +2800,7 @@ def main():
                 clean_workspace_artifacts(workspace)
                 subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
                 subprocess.run(
-                    ["git", "commit", "-m", "[multiagent-loop] Clean up artifacts"],
+                    ["git", "commit", "-m", "[ftl-sdlc-loop] Clean up artifacts"],
                     cwd=workspace, env=env, capture_output=True
                 )
 
@@ -2841,7 +2841,7 @@ def main():
                     mr_description = f"## Description\n\n{task[:500]}\n\n"
                     if gitlab_issue:
                         mr_description += f"Closes #{gitlab_issue['number']}\n\n"
-                    mr_description += "🤖 Generated with [multiagent-loop](https://github.com/benthomasson/multiagent-loop)"
+                    mr_description += "🤖 Generated with [ftl-sdlc-loop](https://github.com/benthomasson/ftl-sdlc-loop)"
 
                 mr_url = gitlab_create_mr(
                     source_branch=mr_branch,
@@ -2867,7 +2867,7 @@ def main():
                 clean_workspace_artifacts(workspace)
                 subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
                 subprocess.run(
-                    ["git", "commit", "-m", "[multiagent-loop] Clean up artifacts"],
+                    ["git", "commit", "-m", "[ftl-sdlc-loop] Clean up artifacts"],
                     cwd=workspace, env=env, capture_output=True
                 )
 
