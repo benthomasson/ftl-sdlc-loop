@@ -2938,7 +2938,9 @@ def main():
             # Clean artifacts after squash (so they don't end up in the PR)
             if clean_artifacts:
                 clean_workspace_artifacts(workspace)
-                subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
+                # Don't use git add -A here — it would re-add the on-disk files
+                # that git rm --cached just removed. The git rm --cached calls
+                # in clean_workspace_artifacts already staged the removals.
                 subprocess.run(
                     ["git", "commit", "--amend", "--no-edit"],
                     cwd=workspace, env=env, capture_output=True
