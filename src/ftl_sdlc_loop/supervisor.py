@@ -2819,14 +2819,6 @@ def main():
             env = os.environ.copy()
             env.pop("CLAUDECODE", None)
 
-            if clean_artifacts:
-                clean_workspace_artifacts(workspace)
-                subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
-                subprocess.run(
-                    ["git", "commit", "-m", "[ftl-sdlc-loop] Clean up artifacts"],
-                    cwd=workspace, env=env, capture_output=True
-                )
-
             # Determine branch name
             mr_branch = branch_name or "ftl-sdlc-work"
 
@@ -2838,11 +2830,11 @@ def main():
                 )
 
             # Squash all commits into one clean commit
-            result = subprocess.run(
+            sq_result = subprocess.run(
                 ["git", "log", "--oneline", "origin/main..HEAD"],
                 cwd=workspace, env=env, capture_output=True, text=True
             )
-            commit_count = len([l for l in result.stdout.strip().split('\n') if l])
+            commit_count = len([l for l in sq_result.stdout.strip().split('\n') if l])
             if commit_count > 1:
                 mr_title = gitlab_issue['title'] if gitlab_issue else task[:70]
                 print(f"Squashing {commit_count} commits...")
@@ -2850,8 +2842,18 @@ def main():
                     ["git", "reset", "--soft", "origin/main"],
                     cwd=workspace, env=env, capture_output=True
                 )
+                commit_msg = f"{mr_title}\n\nCloses #{gitlab_issue['number']}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" if gitlab_issue else f"{mr_title}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
                 subprocess.run(
-                    ["git", "commit", "-m", f"{mr_title}\n\nCloses #{gitlab_issue['number']}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" if gitlab_issue else f"{mr_title}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"],
+                    ["git", "commit", "-m", commit_msg],
+                    cwd=workspace, env=env, capture_output=True
+                )
+
+            # Clean artifacts after squash (so they don't end up in the MR)
+            if clean_artifacts:
+                clean_workspace_artifacts(workspace)
+                subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
+                subprocess.run(
+                    ["git", "commit", "--amend", "--no-edit"],
                     cwd=workspace, env=env, capture_output=True
                 )
 
@@ -2905,14 +2907,6 @@ def main():
             env = os.environ.copy()
             env.pop("CLAUDECODE", None)
 
-            if clean_artifacts:
-                clean_workspace_artifacts(workspace)
-                subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
-                subprocess.run(
-                    ["git", "commit", "-m", "[ftl-sdlc-loop] Clean up artifacts"],
-                    cwd=workspace, env=env, capture_output=True
-                )
-
             pr_branch = branch_name or "ftl-sdlc-work"
 
             # Only create branch if pipeline ran on main (no feature branch)
@@ -2923,11 +2917,11 @@ def main():
                 )
 
             # Squash all commits into one clean commit
-            result = subprocess.run(
-                ["git", "log", "--oneline", f"origin/main..HEAD"],
+            sq_result = subprocess.run(
+                ["git", "log", "--oneline", "origin/main..HEAD"],
                 cwd=workspace, env=env, capture_output=True, text=True
             )
-            commit_count = len([l for l in result.stdout.strip().split('\n') if l])
+            commit_count = len([l for l in sq_result.stdout.strip().split('\n') if l])
             if commit_count > 1:
                 pr_title = github_issue['title'] if github_issue else task[:70]
                 print(f"Squashing {commit_count} commits...")
@@ -2935,8 +2929,18 @@ def main():
                     ["git", "reset", "--soft", "origin/main"],
                     cwd=workspace, env=env, capture_output=True
                 )
+                commit_msg = f"{pr_title}\n\nCloses #{github_issue['number']}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" if github_issue else f"{pr_title}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"
                 subprocess.run(
-                    ["git", "commit", "-m", f"{pr_title}\n\nCloses #{github_issue['number']}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" if github_issue else f"{pr_title}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"],
+                    ["git", "commit", "-m", commit_msg],
+                    cwd=workspace, env=env, capture_output=True
+                )
+
+            # Clean artifacts after squash (so they don't end up in the PR)
+            if clean_artifacts:
+                clean_workspace_artifacts(workspace)
+                subprocess.run(["git", "add", "-A"], cwd=workspace, env=env, capture_output=True)
+                subprocess.run(
+                    ["git", "commit", "--amend", "--no-edit"],
                     cwd=workspace, env=env, capture_output=True
                 )
 
