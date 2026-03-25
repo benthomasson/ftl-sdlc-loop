@@ -778,7 +778,7 @@ ARTIFACT_PATTERNS = [
     # Other patterns
     "ITERATION_*.md", "planner/", "implementer/", "reviewer/", "user/",
     "tester/USAGE.md", "tester/*.md",  # Keep tester/test_*.py
-    "entries/", "beliefs.md", "nogoods.md"
+    "entries/iteration-*/", "beliefs.md", "nogoods.md"
 ]
 
 
@@ -882,17 +882,15 @@ def clean_workspace_artifacts(workspace: Path) -> None:
                 tar.add(artifact_path, arcname=arcname)
     print(f"  Archived to: {tarball_path}")
 
-    # Remove artifact files
-    print(f"Cleaning {len(artifact_files)} artifact files...")
-    import shutil
+    # Remove artifact files from git but keep on disk
+    print(f"Cleaning {len(artifact_files)} artifact files from git...")
     for p in artifact_files:
+        rel = str(p.relative_to(workspace))
         if p.is_dir():
-            shutil.rmtree(p)
-            subprocess.run(["git", "rm", "-rf", str(p.relative_to(workspace))],
+            subprocess.run(["git", "rm", "-rf", "--cached", rel],
                          cwd=workspace, env=env, capture_output=True)
         elif p.exists():
-            p.unlink()
-            subprocess.run(["git", "rm", "-f", str(p.relative_to(workspace))],
+            subprocess.run(["git", "rm", "-f", "--cached", rel],
                          cwd=workspace, env=env, capture_output=True)
 
     # Remove empty tester/ directory
@@ -2600,15 +2598,24 @@ def main():
         if not success:
             sys.exit(1)
         # Add GitLab remote if specified (for bare repo workflows)
+        workspace = get_workspace_dir()
+        env = os.environ.copy()
+        env.pop("CLAUDECODE", None)
         if gitlab_remote_url:
-            workspace = get_workspace_dir()
-            env = os.environ.copy()
-            env.pop("CLAUDECODE", None)
             subprocess.run(
                 ["git", "remote", "add", "gitlab", gitlab_remote_url],
                 cwd=workspace, env=env, capture_output=True
             )
             print(f"  Added 'gitlab' remote: {gitlab_remote_url}")
+        # If GitHub repo is specified, update origin to point to GitHub
+        # (when --init-from is a local path, origin points locally)
+        if github_issue_repo:
+            github_url = f"git@github.com:{github_issue_repo}.git"
+            subprocess.run(
+                ["git", "remote", "set-url", "origin", github_url],
+                cwd=workspace, env=env, capture_output=True
+            )
+            print(f"  Set origin to: {github_url}")
         if not args and not gitlab_issue_number and not github_issue_number and not continuous_mode:
             sys.exit(0)
 
@@ -2734,6 +2741,14 @@ def main():
         if not branch_name:
             branch_name = gitlab_branch_name(gitlab_issue)
             print(f"Branch: {branch_name}")
+        # Create feature branch and set as target for agent merges
+        set_target_branch(branch_name)
+        env = os.environ.copy()
+        env.pop("CLAUDECODE", None)
+        subprocess.run(
+            ["git", "checkout", "-B", branch_name],
+            cwd=workspace, env=env, capture_output=True
+        )
 
     # Handle GitHub issue - fetch and use as task
     github_issue = None
@@ -2752,6 +2767,14 @@ def main():
         if not branch_name:
             branch_name = github_branch_name(github_issue)
             print(f"Branch: {branch_name}")
+        # Create feature branch and set as target for agent merges
+        set_target_branch(branch_name)
+        env = os.environ.copy()
+        env.pop("CLAUDECODE", None)
+        subprocess.run(
+            ["git", "checkout", "-B", branch_name],
+            cwd=workspace, env=env, capture_output=True
+        )
 
     if continuous_mode:
         # Run in continuous mode
@@ -2805,13 +2828,32 @@ def main():
                 )
 
             # Determine branch name
-            mr_branch = branch_name or "multiagent-work"
+            mr_branch = branch_name or "ftl-sdlc-work"
 
-            # Checkout/create the branch
-            subprocess.run(
-                ["git", "checkout", "-B", mr_branch],
-                cwd=workspace, env=env, capture_output=True
+            # Only create branch if pipeline ran on main (no feature branch)
+            if not branch_name:
+                subprocess.run(
+                    ["git", "checkout", "-B", mr_branch],
+                    cwd=workspace, env=env, capture_output=True
+                )
+
+            # Squash all commits into one clean commit
+            result = subprocess.run(
+                ["git", "log", "--oneline", "origin/main..HEAD"],
+                cwd=workspace, env=env, capture_output=True, text=True
             )
+            commit_count = len([l for l in result.stdout.strip().split('\n') if l])
+            if commit_count > 1:
+                mr_title = gitlab_issue['title'] if gitlab_issue else task[:70]
+                print(f"Squashing {commit_count} commits...")
+                subprocess.run(
+                    ["git", "reset", "--soft", "origin/main"],
+                    cwd=workspace, env=env, capture_output=True
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", f"{mr_title}\n\nCloses #{gitlab_issue['number']}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" if gitlab_issue else f"{mr_title}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"],
+                    cwd=workspace, env=env, capture_output=True
+                )
 
             # Push the branch
             print(f"Pushing branch {mr_branch}...")
@@ -2847,7 +2889,7 @@ def main():
                     source_branch=mr_branch,
                     title=mr_title,
                     description=mr_description,
-                    target_branch=get_target_branch(),
+                    target_branch="main",
                     assignee=gitlab_get_username(),
                     cwd=workspace
                 )
@@ -2871,12 +2913,32 @@ def main():
                     cwd=workspace, env=env, capture_output=True
                 )
 
-            pr_branch = branch_name or "multiagent-work"
+            pr_branch = branch_name or "ftl-sdlc-work"
 
-            subprocess.run(
-                ["git", "checkout", "-B", pr_branch],
-                cwd=workspace, env=env, capture_output=True
+            # Only create branch if pipeline ran on main (no feature branch)
+            if not branch_name:
+                subprocess.run(
+                    ["git", "checkout", "-B", pr_branch],
+                    cwd=workspace, env=env, capture_output=True
+                )
+
+            # Squash all commits into one clean commit
+            result = subprocess.run(
+                ["git", "log", "--oneline", f"origin/main..HEAD"],
+                cwd=workspace, env=env, capture_output=True, text=True
             )
+            commit_count = len([l for l in result.stdout.strip().split('\n') if l])
+            if commit_count > 1:
+                pr_title = github_issue['title'] if github_issue else task[:70]
+                print(f"Squashing {commit_count} commits...")
+                subprocess.run(
+                    ["git", "reset", "--soft", "origin/main"],
+                    cwd=workspace, env=env, capture_output=True
+                )
+                subprocess.run(
+                    ["git", "commit", "-m", f"{pr_title}\n\nCloses #{github_issue['number']}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>" if github_issue else f"{pr_title}\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>"],
+                    cwd=workspace, env=env, capture_output=True
+                )
 
             print(f"Pushing branch {pr_branch}...")
             push_result = subprocess.run(
@@ -2898,7 +2960,7 @@ def main():
                     ["gh", "pr", "create",
                      "--title", pr_title,
                      "--body", pr_description,
-                     "--base", get_target_branch(),
+                     "--base", "main",
                      "--head", pr_branch] + repo_flag,
                     cwd=workspace, env=env, capture_output=True, text=True
                 )
