@@ -1266,7 +1266,6 @@ After writing your plan, reflect:
 1. What went well in your planning process?
 2. What information were you missing that would have helped?
 3. What would make your job easier next time?
-4. Rate your confidence in this plan (HIGH/MEDIUM/LOW) and explain why.
 
 Be concise and actionable. The implementer may push back on the HOW.
 
@@ -1281,7 +1280,6 @@ QUESTION FOR HUMAN: [your question here]"""
 
     return {
         "output": response,
-        "confidence": "HIGH" if "HIGH" in response else ("LOW" if "LOW" in response else "MEDIUM")
     }
 
 
@@ -1920,7 +1918,6 @@ Verdict: {'SATISFIED' if results['user_satisfied'] else 'NEEDS_IMPROVEMENT'}
 {unresolved_section}
 ## Summary
 
-- Planner confidence: {plan_result.get('confidence', 'N/A')}
 - Reviewer verdict: {'APPROVED' if results['approved'] else 'NEEDS_CHANGES'}
 - User verdict: {'SATISFIED' if results['user_satisfied'] else 'NEEDS_IMPROVEMENT'}
 - Unresolved issues: {len(results['unresolved_issues'])}
