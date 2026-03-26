@@ -41,6 +41,9 @@ uv run supervisor.py --workspace issue-285 --init-from ~/git/repo.git --gitlab-r
 # Create MR after completion:
 uv run supervisor.py --workspace issue-285 --gitlab-mr --push
 
+# GitHub workflow with code review - fix issue, create PR, review, post comment
+uv run ftl-sdlc-loop --workspace issue-29 --init-from ~/git/ftl2 --github-issue 29 --github-repo benthomasson/ftl2 --github-pr --code-review --effort moderate --no-questions --clean
+
 # With shared understanding from Phase 0
 uv run supervisor.py --understanding workspace/SHARED_UNDERSTANDING.md "build the feature"
 

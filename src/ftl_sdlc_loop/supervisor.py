@@ -2392,6 +2392,7 @@ def main():
         print(f"  --github-issue NUM    Fetch GitHub issue and use as task prompt")
         print(f"  --github-repo SLUG    GitHub repo (owner/repo) for issue fetch (auto-detected if omitted)")
         print(f"  --github-pr           Create GitHub pull request after successful run")
+        print(f"  --code-review         Run code-review review-loop after PR creation (requires --github-pr)")
         print(f"\nGitLab options:")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
@@ -2449,6 +2450,7 @@ def main():
         print(f"  --github-issue NUM    Fetch GitHub issue and use as task prompt")
         print(f"  --github-repo SLUG    GitHub repo (owner/repo) for issue fetch (auto-detected if omitted)")
         print(f"  --github-pr           Create GitHub pull request after successful run")
+        print(f"  --code-review         Run code-review review-loop after PR creation (requires --github-pr)")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
         print(f"  --gitlab-remote URL   Add GitLab remote (for bare repo workflows)")
@@ -2492,6 +2494,7 @@ def main():
     github_issue_number = None  # GitHub issue to fetch
     github_issue_repo = None  # GitHub repo slug (owner/repo)
     github_pr = False  # Create GitHub PR after run
+    code_review = False  # Run code-review after PR creation
     clean_artifacts = False  # Strip SDLC artifacts before push
     branch_name = None  # Override branch name
 
@@ -2561,6 +2564,11 @@ def main():
             print("Install: https://cli.github.com")
             print("Authenticate: gh auth login")
             sys.exit(1)
+
+    if "--code-review" in args:
+        idx = args.index("--code-review")
+        code_review = True
+        args = args[:idx] + args[idx + 1:]
 
     if "--clean" in args:
         idx = args.index("--clean")
@@ -2968,7 +2976,34 @@ def main():
                     cwd=workspace, env=env, capture_output=True, text=True
                 )
                 if pr_result.returncode == 0:
-                    print(f"Pull request created: {pr_result.stdout.strip()}")
+                    pr_url = pr_result.stdout.strip()
+                    print(f"Pull request created: {pr_url}")
+
+                    # Run code-review if requested
+                    if code_review:
+                        print(f"\nRunning code-review review-loop on {pr_url}...")
+                        review_cmd = [
+                            "code-review", "review-loop",
+                            "--pr", pr_url,
+                            "--comment",
+                        ]
+                        if github_issue_repo:
+                            # Use the init-from repo for local checkout + observations
+                            init_from_val = None
+                            for i, a in enumerate(sys.argv):
+                                if a == "--init-from" and i + 1 < len(sys.argv):
+                                    init_from_val = sys.argv[i + 1]
+                                    break
+                            if init_from_val and os.path.isdir(init_from_val):
+                                review_cmd.extend(["--repo", init_from_val])
+                            if github_issue_number:
+                                issue_ref = f"https://github.com/{github_issue_repo}/issues/{github_issue_number}"
+                                review_cmd.extend(["--github-issue", issue_ref])
+                        review_result = subprocess.run(
+                            review_cmd, env=env, capture_output=False
+                        )
+                        if review_result.returncode != 0:
+                            print(f"Code review completed with exit code {review_result.returncode}")
                 else:
                     print(f"Error creating PR: {pr_result.stderr}")
         elif github_pr and not result.get("final_satisfied"):
