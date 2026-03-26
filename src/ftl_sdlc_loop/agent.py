@@ -428,8 +428,15 @@ Write any output files to this directory.
     env = os.environ.copy()
     env.pop("CLAUDECODE", None)
 
+    # Agents that modify source code run in the workspace root (source tree)
+    # so they can find and edit existing files directly. Other agents run
+    # in their session directory.
+    source_modifying_roles = {"implementer", "tester"}
+    agent_cwd = workspace if role in source_modifying_roles else agent_session_dir
+
     log(f"Running claude command for {role}")
     log(f"Command: claude -p '<prompt>' --allowedTools {','.join(permissions.get('allowed_tools', []))}")
+    log(f"Working directory: {agent_cwd}")
 
     # Use Popen to capture PID for monitoring/killing
     process = subprocess.Popen(
@@ -438,7 +445,7 @@ Write any output files to this directory.
         stderr=subprocess.PIPE,
         text=True,
         env=env,
-        cwd=agent_session_dir
+        cwd=agent_cwd
     )
 
     # Write PID file so we can kill if needed

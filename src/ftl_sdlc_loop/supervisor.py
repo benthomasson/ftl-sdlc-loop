@@ -1314,13 +1314,20 @@ Address the reviewer's concerns in your implementation.
 the software is built. You can push back on the planner's suggestions if
 they won't work.
 
+You are running in the SOURCE TREE of the project. The files you need to
+modify are right here in your working directory. Use Glob and Grep to find
+them, Read to examine them, and Edit to modify them.
+
 You have access to Read, Glob, Grep, Write, and Edit tools.
 
-IMPORTANT - How to modify code:
-- To MODIFY EXISTING FILES: First use Read to read the file, then use the EDIT TOOL to make changes
-- To CREATE NEW FILES: Use the Write tool
-- ALWAYS read existing files before editing them
-- The Edit tool replaces specific text - provide exact old_string and new_string
+CRITICAL - You MUST actually modify the source files:
+- Use Glob/Grep to FIND the files mentioned in the plan
+- Use Read to examine each file before editing
+- Use Edit to make changes to EXISTING source files (provide exact old_string and new_string)
+- Use Write only for NEW files (e.g. new test files)
+- Do NOT just describe changes in markdown — you must use Edit/Write tools to make real changes
+- Do NOT write implementation notes instead of editing code — EDIT THE ACTUAL SOURCE FILES
+- If you only write markdown describing changes without using Edit/Write on source files, you have FAILED
 
 ORIGINAL TASK: {task}
 
@@ -1332,20 +1339,18 @@ Provide your response in TWO parts:
 ## IMPLEMENTATION
 
 1. If pushing back on the plan, explain WHY and what you'll do instead
-2. For EXISTING files: Use Read to examine them, then Edit to modify them
-3. For NEW files: Use Write to create them
-4. Do NOT just output code in markdown - actually use the tools to modify/create files
-5. Write code with clear error messages and structured output
+2. Find the files: Use Glob/Grep to locate the source files to modify
+3. For EXISTING files: Use Read to examine them, then Edit to modify them
+4. For NEW files: Use Write to create them
+5. Verify: After editing, Read the modified files to confirm your changes are correct
 
 ## SELF-REVIEW
 
 After implementing, reflect:
-1. What went well in your implementation?
-2. What was unclear in the plan that caused friction?
-3. What would make your job easier next time?
+1. Which source files did you actually modify? (list file paths)
+2. What went well in your implementation?
+3. What was unclear in the plan that caused friction?
 4. Any concerns about this implementation the reviewer should focus on?
-
-Use the Edit and Write tools to actually modify/create files - do not just output code in markdown.
 
 If you need clarification or are stuck, escalate to a human:
 QUESTION FOR HUMAN: [your question here]"""
@@ -1483,8 +1488,13 @@ def tester(code: str, task: str, reviewer_notes: str, iteration: int = 1,
 1. Create tests for this implementation
 2. Document HOW TO USE the software for the User
 
+You are running in the SOURCE TREE of the project. Test files should be
+created alongside the existing test infrastructure — use Glob to find
+where existing tests live (e.g. `**/tests/**/test_*.py`) and put new
+tests in the appropriate location, NOT in a separate `tester/` directory.
+
 You have access to Write, Edit, Read, Glob, Grep, and Bash tools.
-USE THE WRITE TOOL to create test files.
+USE THE WRITE TOOL to create test files in the project's test directories.
 USE BASH to run the tests and verify they pass.
 
 ORIGINAL TASK: {task}
