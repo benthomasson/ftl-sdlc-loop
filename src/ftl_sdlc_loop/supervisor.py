@@ -2985,20 +2985,12 @@ def main():
                         review_cmd = [
                             "code-review", "review-loop",
                             "--pr", pr_url,
+                            "--repo", workspace,
                             "--comment",
                         ]
-                        if github_issue_repo:
-                            # Use the init-from repo for local checkout + observations
-                            init_from_val = None
-                            for i, a in enumerate(sys.argv):
-                                if a == "--init-from" and i + 1 < len(sys.argv):
-                                    init_from_val = sys.argv[i + 1]
-                                    break
-                            if init_from_val and os.path.isdir(init_from_val):
-                                review_cmd.extend(["--repo", init_from_val])
-                            if github_issue_number:
-                                issue_ref = f"https://github.com/{github_issue_repo}/issues/{github_issue_number}"
-                                review_cmd.extend(["--github-issue", issue_ref])
+                        if github_issue_repo and github_issue_number:
+                            issue_ref = f"https://github.com/{github_issue_repo}/issues/{github_issue_number}"
+                            review_cmd.extend(["--github-issue", issue_ref])
                         review_result = subprocess.run(
                             review_cmd, env=env, capture_output=False
                         )
