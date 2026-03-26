@@ -1310,52 +1310,42 @@ REVIEWER FEEDBACK:
 Address the reviewer's concerns in your implementation.
 """
 
-    prompt = f"""You are a software implementer. You have ULTIMATE CONTROL of HOW
-the software is built. You can push back on the planner's suggestions if
-they won't work.
+    # Phase 1: Make the actual changes — no prose, just tool calls
+    implement_prompt = f"""You are a software implementer. Your ONLY job right now is to
+make code changes using the Edit and Write tools. Do NOT write prose or
+documentation. Do NOT create markdown files. Just find the files and edit them.
 
-You are running in the SOURCE TREE of the project. The files you need to
-modify are right here in your working directory. Use Glob and Grep to find
-them, Read to examine them, and Edit to modify them.
+You are running in the SOURCE TREE of the project.
 
-You have access to Read, Glob, Grep, Write, and Edit tools.
+Steps:
+1. Use Glob/Grep to find the files mentioned in the plan
+2. Use Read to examine each file
+3. Use Edit to modify existing files (provide exact old_string and new_string)
+4. Use Write to create new files (e.g. new test files)
+5. Use Read to verify your changes are correct
 
-CRITICAL - You MUST actually modify the source files:
-- Use Glob/Grep to FIND the files mentioned in the plan
-- Use Read to examine each file before editing
-- Use Edit to make changes to EXISTING source files (provide exact old_string and new_string)
-- Use Write only for NEW files (e.g. new test files)
-- Do NOT just describe changes in markdown — you must use Edit/Write tools to make real changes
-- Do NOT write implementation notes instead of editing code — EDIT THE ACTUAL SOURCE FILES
-- If you only write markdown describing changes without using Edit/Write on source files, you have FAILED
+Do NOT write any markdown files. Do NOT create IMPLEMENTATION.md or notes.
+Your ONLY output should be a brief list of files you changed.
 
 ORIGINAL TASK: {task}
 
 PLANNER'S PLAN:
 {plan}
 {feedback_section}
-Provide your response in TWO parts:
-
-## IMPLEMENTATION
-
-1. If pushing back on the plan, explain WHY and what you'll do instead
-2. Find the files: Use Glob/Grep to locate the source files to modify
-3. For EXISTING files: Use Read to examine them, then Edit to modify them
-4. For NEW files: Use Write to create them
-5. Verify: After editing, Read the modified files to confirm your changes are correct
-
-## SELF-REVIEW
-
-After implementing, reflect:
-1. Which source files did you actually modify? (list file paths)
-2. What went well in your implementation?
-3. What was unclear in the plan that caused friction?
-4. Any concerns about this implementation the reviewer should focus on?
-
 If you need clarification or are stuck, escalate to a human:
 QUESTION FOR HUMAN: [your question here]"""
 
-    response = run_agent("implementer", prompt, continue_session=(continue_conversations or iteration > 1))
+    run_agent("implementer", implement_prompt, continue_session=(continue_conversations or iteration > 1))
+
+    # Phase 2: Describe what was done (continue session so it has context)
+    describe_prompt = """Now describe what you just did. List the files you modified and
+what changes you made in each one. Include a self-review:
+1. Which source files did you actually modify? (list file paths)
+2. What went well?
+3. What was unclear in the plan?
+4. Any concerns for the reviewer?"""
+
+    response = run_agent("implementer", describe_prompt, continue_session=True)
 
     # Extract and save code blocks
     # Supports multiple formats:
