@@ -2393,6 +2393,7 @@ def main():
         print(f"  --github-repo SLUG    GitHub repo (owner/repo) for issue fetch (auto-detected if omitted)")
         print(f"  --github-pr           Create GitHub pull request after successful run")
         print(f"  --code-review         Run code-review review-loop after PR creation (requires --github-pr)")
+        print(f"  --beliefs PATH        Beliefs file for code-review (from code-expert)")
         print(f"\nGitLab options:")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
@@ -2451,6 +2452,7 @@ def main():
         print(f"  --github-repo SLUG    GitHub repo (owner/repo) for issue fetch (auto-detected if omitted)")
         print(f"  --github-pr           Create GitHub pull request after successful run")
         print(f"  --code-review         Run code-review review-loop after PR creation (requires --github-pr)")
+        print(f"  --beliefs PATH        Beliefs file for code-review (from code-expert)")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
         print(f"  --gitlab-remote URL   Add GitLab remote (for bare repo workflows)")
@@ -2495,6 +2497,7 @@ def main():
     github_issue_repo = None  # GitHub repo slug (owner/repo)
     github_pr = False  # Create GitHub PR after run
     code_review = False  # Run code-review after PR creation
+    beliefs_path = None  # Beliefs file for code-review
     init_from_path = None  # Local repo path from --init-from
     clean_artifacts = False  # Strip SDLC artifacts before push
     branch_name = None  # Override branch name
@@ -2570,6 +2573,14 @@ def main():
         idx = args.index("--code-review")
         code_review = True
         args = args[:idx] + args[idx + 1:]
+
+    if "--beliefs" in args:
+        idx = args.index("--beliefs")
+        beliefs_path = os.path.expanduser(args[idx + 1])
+        if not os.path.isfile(beliefs_path):
+            print(f"Error: Beliefs file not found: {beliefs_path}")
+            sys.exit(1)
+        args = args[:idx] + args[idx + 2:]
 
     if "--clean" in args:
         idx = args.index("--clean")
@@ -3015,6 +3026,8 @@ def main():
                         if github_issue_repo and github_issue_number:
                             issue_ref = f"https://github.com/{github_issue_repo}/issues/{github_issue_number}"
                             review_cmd.extend(["--github-issue", issue_ref])
+                        if beliefs_path:
+                            review_cmd.extend(["--beliefs", beliefs_path])
                         review_result = subprocess.run(
                             review_cmd, env=env, capture_output=False
                         )
