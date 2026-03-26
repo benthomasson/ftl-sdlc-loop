@@ -221,7 +221,7 @@ def github_fetch_issue(issue_number: int, repo: str | None = None, cwd: Path | N
     """
     try:
         cmd = ["gh", "issue", "view", str(issue_number), "--json",
-               "number,title,body,labels,url"]
+               "number,title,body,labels,url,comments"]
         if repo:
             cmd.extend(["--repo", repo])
         result = subprocess.run(cmd, capture_output=True, text=True, cwd=cwd)
@@ -230,12 +230,19 @@ def github_fetch_issue(issue_number: int, repo: str | None = None, cwd: Path | N
             return None
 
         data = json.loads(result.stdout)
+        comments = []
+        for c in data.get('comments', []):
+            author = c.get('author', {}).get('login', 'unknown')
+            body = c.get('body', '')
+            if body:
+                comments.append(f"**{author}:** {body}")
         return {
             'number': data.get('number', issue_number),
             'title': data.get('title', ''),
             'body': data.get('body', ''),
             'labels': [l.get('name', '') for l in data.get('labels', [])],
             'url': data.get('url', ''),
+            'comments': comments,
         }
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"Error fetching GitHub issue #{issue_number}: {e}")
@@ -253,6 +260,10 @@ def github_build_prompt(issue: dict) -> str:
     """Build task prompt from GitHub issue."""
     prompt = f"## {issue['title']}\n\n"
     prompt += issue.get('body') or "(No description provided)"
+    comments = issue.get('comments', [])
+    if comments:
+        prompt += "\n\n## Discussion\n\n"
+        prompt += "\n\n".join(comments)
     prompt += f"\n\nCloses #{issue['number']}"
     return prompt
 
