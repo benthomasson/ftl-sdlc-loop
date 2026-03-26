@@ -21,7 +21,7 @@ First run `ftl-sdlc-loop --help` to see all available options and examples.
 
 Try these in order until one works:
 1. `ftl-sdlc-loop $ARGUMENTS` (if installed via uv/pip)
-2. `uv run ftl-sdlc-loop $ARGUMENTS` (if in the multiagent-loop repo)
+2. `uv run ftl-sdlc-loop $ARGUMENTS` (if in the ftl-sdlc-loop repo)
 3. `uv run supervisor.py $ARGUMENTS` (direct script invocation)
 
 ## Common Workflows
