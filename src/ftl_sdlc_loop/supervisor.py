@@ -2495,6 +2495,7 @@ def main():
     github_issue_repo = None  # GitHub repo slug (owner/repo)
     github_pr = False  # Create GitHub PR after run
     code_review = False  # Run code-review after PR creation
+    init_from_path = None  # Local repo path from --init-from
     clean_artifacts = False  # Strip SDLC artifacts before push
     branch_name = None  # Override branch name
 
@@ -2599,6 +2600,8 @@ def main():
         idx = args.index("--init-from")
         source = args[idx + 1]  # Can be path or URL
         args = args[:idx] + args[idx + 2:]
+        if os.path.isdir(source):
+            init_from_path = os.path.abspath(source)
         success = init_workspace_from(source)
         if not success:
             sys.exit(1)
@@ -2985,9 +2988,30 @@ def main():
                         review_cmd = [
                             "code-review", "review-loop",
                             "--pr", pr_url,
-                            "--repo", workspace,
                             "--comment",
                         ]
+                        # Use init-from repo for observations (clean tree, no SDLC artifacts)
+                        if init_from_path:
+                            # Fetch and checkout the PR branch in the source repo
+                            subprocess.run(
+                                ["git", "fetch", "origin", pr_branch],
+                                cwd=init_from_path, env=env, capture_output=True
+                            )
+                            checkout = subprocess.run(
+                                ["git", "checkout", pr_branch],
+                                cwd=init_from_path, env=env, capture_output=True
+                            )
+                            if checkout.returncode != 0:
+                                subprocess.run(
+                                    ["git", "checkout", "-b", pr_branch, f"origin/{pr_branch}"],
+                                    cwd=init_from_path, env=env, capture_output=True
+                                )
+                            else:
+                                subprocess.run(
+                                    ["git", "pull", "--ff-only", "origin", pr_branch],
+                                    cwd=init_from_path, env=env, capture_output=True
+                                )
+                            review_cmd.extend(["--repo", init_from_path])
                         if github_issue_repo and github_issue_number:
                             issue_ref = f"https://github.com/{github_issue_repo}/issues/{github_issue_number}"
                             review_cmd.extend(["--github-issue", issue_ref])
