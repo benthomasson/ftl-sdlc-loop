@@ -2405,6 +2405,7 @@ def main():
         print(f"  --github-pr           Create GitHub pull request after successful run")
         print(f"  --code-review         Run code-review review-loop after PR creation (requires --github-pr)")
         print(f"  --beliefs PATH        Beliefs file for code-review (from code-expert)")
+        print(f"  --review-model NAME   Model for code-review (repeatable, default: claude + gemini)")
         print(f"\nGitLab options:")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
@@ -2464,6 +2465,7 @@ def main():
         print(f"  --github-pr           Create GitHub pull request after successful run")
         print(f"  --code-review         Run code-review review-loop after PR creation (requires --github-pr)")
         print(f"  --beliefs PATH        Beliefs file for code-review (from code-expert)")
+        print(f"  --review-model NAME   Model for code-review (repeatable, default: claude + gemini)")
         print(f"  --gitlab-issue NUM    Fetch GitLab issue, assign to self, use as task prompt")
         print(f"  --gitlab-mr           Create GitLab merge request after successful run")
         print(f"  --gitlab-remote URL   Add GitLab remote (for bare repo workflows)")
@@ -2509,6 +2511,7 @@ def main():
     github_pr = False  # Create GitHub PR after run
     code_review = False  # Run code-review after PR creation
     beliefs_path = None  # Beliefs file for code-review
+    review_models = []  # Models to use for code-review (e.g. claude, gemini)
     init_from_path = None  # Local repo path from --init-from
     clean_artifacts = False  # Strip SDLC artifacts before push
     branch_name = None  # Override branch name
@@ -2591,6 +2594,11 @@ def main():
         if not os.path.isfile(beliefs_path):
             print(f"Error: Beliefs file not found: {beliefs_path}")
             sys.exit(1)
+        args = args[:idx] + args[idx + 2:]
+
+    while "--review-model" in args:
+        idx = args.index("--review-model")
+        review_models.append(args[idx + 1])
         args = args[:idx] + args[idx + 2:]
 
     if "--clean" in args:
@@ -3039,6 +3047,8 @@ def main():
                             review_cmd.extend(["--github-issue", issue_ref])
                         if beliefs_path:
                             review_cmd.extend(["--beliefs", beliefs_path])
+                        for model in review_models:
+                            review_cmd.extend(["-m", model])
                         review_result = subprocess.run(
                             review_cmd, env=env, capture_output=False
                         )
