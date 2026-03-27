@@ -6,6 +6,9 @@
 # Legacy (single workspace)
 /workspace/
 
+# Lockfile
+uv.lock
+
 # Python
 __pycache__/
 *.pyc
