@@ -21,13 +21,13 @@ The output is a SHARED_UNDERSTANDING.md that all agents reference.
 See: https://github.com/benthomasson/shared-understanding
 """
 
+import os
 import subprocess
 import sys
-import os
 from pathlib import Path
-from datetime import datetime
 
 WORKSPACE = Path(__file__).parent / "workspace"
+
 
 def run_claude(prompt: str, continue_session: bool = False) -> str:
     """Run claude -p with the understanding agent context."""
@@ -43,11 +43,7 @@ def run_claude(prompt: str, continue_session: bool = False) -> str:
     env.pop("CLAUDECODE", None)
 
     result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        env=env,
-        cwd=understand_dir
+        cmd, capture_output=True, text=True, env=env, cwd=understand_dir
     )
     return result.stdout.strip()
 
@@ -274,12 +270,14 @@ def interactive_understanding(task: str, context_sources: list[str] | None = Non
     print(f"Shared understanding saved to: {doc_path}")
     print("=" * 60)
     print("\nNext: Run the development loop with this understanding:")
-    print(f"  uv run supervisor.py --understanding {doc_path} \"{task}\"")
+    print(f'  uv run supervisor.py --understanding {doc_path} "{task}"')
 
     return shared_doc
 
 
-def batch_understanding(task: str, answers_file: str, context_sources: list[str] | None = None):
+def batch_understanding(
+    task: str, answers_file: str, context_sources: list[str] | None = None
+):
     """Run shared understanding in batch mode with pre-provided answers."""
 
     WORKSPACE.mkdir(exist_ok=True)
@@ -316,9 +314,11 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print(f"Usage: {sys.argv[0]} <task description> [--context FILE...]")
         print(f"       {sys.argv[0]} <task> --answers FILE  (batch mode)")
-        print(f"\nExamples:")
+        print("\nExamples:")
         print(f"  {sys.argv[0]} 'build a REST API for user management'")
-        print(f"  {sys.argv[0]} 'fix the login bug' --context JIRA-123.md slack-thread.txt")
+        print(
+            f"  {sys.argv[0]} 'fix the login bug' --context JIRA-123.md slack-thread.txt"
+        )
         print(f"  {sys.argv[0]} 'new feature' --answers answers.txt")
         sys.exit(1)
 

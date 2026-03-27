@@ -22,11 +22,11 @@ Workflow:
 5. Supervisor merges back to main when stage completes
 """
 
-import subprocess
 import os
+import subprocess
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 BASE_DIR = Path.cwd()
 LOG_FILE = BASE_DIR / "multiagent.log"
@@ -81,12 +81,14 @@ def get_target_branch() -> str:
 VERBOSE = True
 _log_file_handle = None
 
+
 def _get_log_file():
     """Get or create log file handle."""
     global _log_file_handle
     if _log_file_handle is None:
         _log_file_handle = open(LOG_FILE, "a")
     return _log_file_handle
+
 
 def log(msg: str, level: str = "INFO"):
     """Log a message with timestamp to stderr and file."""
@@ -101,6 +103,7 @@ def log(msg: str, level: str = "INFO"):
     # Print to stderr if verbose or error/warn
     if VERBOSE or level in ["ERROR", "WARN"]:
         print(log_line, file=sys.stderr)
+
 
 # PID file management
 def write_pid(role: str, pid: int) -> Path:
@@ -216,11 +219,7 @@ def git_cmd(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     env = os.environ.copy()
     env.pop("CLAUDECODE", None)
     return subprocess.run(
-        ["git"] + args,
-        cwd=cwd,
-        env=env,
-        capture_output=True,
-        text=True
+        ["git"] + args, cwd=cwd, env=env, capture_output=True, text=True
     )
 
 
@@ -288,6 +287,17 @@ def commit_agent_work(role: str, message: str) -> bool:
     # Stage changes in agent's directory
     git_cmd(["add", role + "/"], workspace)
 
+    # Source-modifying agents (implementer, tester) run in the workspace root
+    # and edit files outside their subdirectory. Stage all changes so source
+    # edits are captured in the agent's commit, but exclude other agents'
+    # subdirectories to avoid pulling in their uncommitted work.
+    source_modifying_roles = {"implementer", "tester"}
+    if role in source_modifying_roles:
+        log(f"Staging source changes for {role}")
+        other_agent_dirs = [r for r in AGENT_PERMISSIONS if r != role]
+        pathspec = ["--", "."] + [f":!{d}/" for d in other_agent_dirs]
+        git_cmd(["add"] + pathspec, workspace)
+
     # Check if there are changes to commit
     result = git_cmd(["diff", "--cached", "--quiet"], workspace)
     if result.returncode == 0:
@@ -344,13 +354,16 @@ def get_workspace_context(role: str) -> str:
             if agent == "implementer":
                 for f in sorted(agent_dir.glob("*.py"))[:3]:
                     content = f.read_text()[:3000]
-                    context_parts.append(f"## {agent}/{f.name}\n\n```python\n{content}\n```")
+                    context_parts.append(
+                        f"## {agent}/{f.name}\n\n```python\n{content}\n```"
+                    )
 
     return "\n\n---\n\n".join(context_parts) if context_parts else ""
 
 
-def run_agent(role: str, message: str, continue_session: bool = False,
-              auto_commit: bool = True) -> str:
+def run_agent(
+    role: str, message: str, continue_session: bool = False, auto_commit: bool = True
+) -> str:
     """
     Run a claude prompt as a specific agent role.
 
@@ -375,11 +388,14 @@ def run_agent(role: str, message: str, continue_session: bool = False,
     agent_workspace = setup_agent_branch(role)
 
     # Get permissions
-    permissions = AGENT_PERMISSIONS.get(role, {
-        "allowed_tools": ["Read"],
-        "can_write": False,
-        "description": "Default: read only",
-    })
+    permissions = AGENT_PERMISSIONS.get(
+        role,
+        {
+            "allowed_tools": ["Read"],
+            "can_write": False,
+            "description": "Default: read only",
+        },
+    )
     log(f"Permissions: {permissions['allowed_tools']}")
 
     # Get context from workspace
@@ -435,7 +451,9 @@ Write any output files to this directory.
     agent_cwd = workspace if role in source_modifying_roles else agent_session_dir
 
     log(f"Running claude command for {role}")
-    log(f"Command: claude -p '<prompt>' --allowedTools {','.join(permissions.get('allowed_tools', []))}")
+    log(
+        f"Command: claude -p '<prompt>' --allowedTools {','.join(permissions.get('allowed_tools', []))}"
+    )
     log(f"Working directory: {agent_cwd}")
 
     # Use Popen to capture PID for monitoring/killing
@@ -445,7 +463,7 @@ Write any output files to this directory.
         stderr=subprocess.PIPE,
         text=True,
         env=env,
-        cwd=agent_cwd
+        cwd=agent_cwd,
     )
 
     # Write PID file so we can kill if needed
@@ -464,13 +482,17 @@ Write any output files to this directory.
     # Update result references for rest of function
     class Result:
         pass
+
     result = Result()
     result.returncode = returncode
     result.stdout = stdout
     result.stderr = stderr
 
     if result.stderr:
-        log(f"Stderr: {result.stderr[:200]}", "WARN" if result.returncode == 0 else "ERROR")
+        log(
+            f"Stderr: {result.stderr[:200]}",
+            "WARN" if result.returncode == 0 else "ERROR",
+        )
 
     # Auto-commit if agent has write permissions
     if auto_commit and permissions.get("can_write"):
@@ -494,7 +516,9 @@ def finalize_agent(role: str) -> bool:
 
 def reset_agent(role: str) -> None:
     """Start a fresh session for an agent."""
-    run_agent(role, "Starting fresh session.", continue_session=False, auto_commit=False)
+    run_agent(
+        role, "Starting fresh session.", continue_session=False, auto_commit=False
+    )
 
 
 def list_agents() -> list[str]:
@@ -573,7 +597,7 @@ if __name__ == "__main__":
 
     role = sys.argv[1]
     if len(sys.argv) < 3:
-        print(f"Error: message required")
+        print("Error: message required")
         sys.exit(1)
 
     if sys.argv[2] == "-c":
