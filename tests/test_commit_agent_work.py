@@ -9,16 +9,21 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
-import pytest
-
 
 def _git(args: list[str], cwd: Path) -> subprocess.CompletedProcess:
     """Run a git command in the given directory."""
     return subprocess.run(
-        ["git"] + args, cwd=cwd, capture_output=True, text=True,
-        env={"GIT_AUTHOR_NAME": "test", "GIT_AUTHOR_EMAIL": "test@test",
-             "GIT_COMMITTER_NAME": "test", "GIT_COMMITTER_EMAIL": "test@test",
-             "PATH": "/usr/bin:/bin:/usr/local/bin"},
+        ["git"] + args,
+        cwd=cwd,
+        capture_output=True,
+        text=True,
+        env={
+            "GIT_AUTHOR_NAME": "test",
+            "GIT_AUTHOR_EMAIL": "test@test",
+            "GIT_COMMITTER_NAME": "test",
+            "GIT_COMMITTER_EMAIL": "test@test",
+            "PATH": "/usr/bin:/bin:/usr/local/bin",
+        },
     )
 
 
@@ -60,6 +65,7 @@ def test_implementer_commits_source_files(tmp_path):
 
     with patch("ftl_sdlc_loop.agent.get_workspace_dir", return_value=workspace):
         from ftl_sdlc_loop.agent import commit_agent_work
+
         result = commit_agent_work("implementer", "test commit")
 
     assert result is True
@@ -81,6 +87,7 @@ def test_implementer_excludes_other_agent_dirs(tmp_path):
 
     with patch("ftl_sdlc_loop.agent.get_workspace_dir", return_value=workspace):
         from ftl_sdlc_loop.agent import commit_agent_work
+
         result = commit_agent_work("implementer", "test commit")
 
     assert result is True
@@ -100,6 +107,7 @@ def test_tester_commits_source_files(tmp_path):
 
     with patch("ftl_sdlc_loop.agent.get_workspace_dir", return_value=workspace):
         from ftl_sdlc_loop.agent import commit_agent_work
+
         result = commit_agent_work("tester", "test commit")
 
     assert result is True
@@ -119,6 +127,7 @@ def test_planner_only_commits_own_directory(tmp_path):
 
     with patch("ftl_sdlc_loop.agent.get_workspace_dir", return_value=workspace):
         from ftl_sdlc_loop.agent import commit_agent_work
+
         result = commit_agent_work("planner", "test commit")
 
     assert result is True
@@ -134,6 +143,7 @@ def test_no_changes_returns_false(tmp_path):
 
     with patch("ftl_sdlc_loop.agent.get_workspace_dir", return_value=workspace):
         from ftl_sdlc_loop.agent import commit_agent_work
+
         result = commit_agent_work("implementer", "nothing to commit")
 
     assert result is False
