@@ -5,7 +5,7 @@ added per issue #1, and that they render correctly under various input combinati
 """
 
 import re
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 
 def _call_planner(**kwargs):
@@ -13,10 +13,13 @@ def _call_planner(**kwargs):
     defaults = {"task": "test task", "iteration": 1}
     defaults.update(kwargs)
     mock_run_agent = MagicMock(return_value="mocked response")
-    with patch("ftl_sdlc_loop.supervisor.run_agent", mock_run_agent), \
-         patch("ftl_sdlc_loop.supervisor.save_artifact"), \
-         patch("ftl_sdlc_loop.supervisor.git_commit"):
+    with (
+        patch("ftl_sdlc_loop.supervisor.run_agent", mock_run_agent),
+        patch("ftl_sdlc_loop.supervisor.save_artifact"),
+        patch("ftl_sdlc_loop.supervisor.git_commit"),
+    ):
         from ftl_sdlc_loop.supervisor import planner
+
         planner(**defaults)
         # run_agent is called as run_agent("planner", prompt, continue_session=...)
         call_args = mock_run_agent.call_args
@@ -25,6 +28,7 @@ def _call_planner(**kwargs):
 
 
 # --- Guideline presence tests ---
+
 
 def test_output_guidelines_section_present():
     """The prompt must contain the '### Output Guidelines' header."""
@@ -74,11 +78,18 @@ def test_all_five_guidelines_present():
     prompt = _call_planner()
     # Each guideline starts with "- **"
     guidelines_section = prompt.split("### Output Guidelines")[1].split("\n1.")[0]
-    bullets = [line.strip() for line in guidelines_section.strip().split("\n") if line.strip().startswith("- **")]
-    assert len(bullets) == 5, f"Expected 5 guideline bullets, got {len(bullets)}: {bullets}"
+    bullets = [
+        line.strip()
+        for line in guidelines_section.strip().split("\n")
+        if line.strip().startswith("- **")
+    ]
+    assert (
+        len(bullets) == 5
+    ), f"Expected 5 guideline bullets, got {len(bullets)}: {bullets}"
 
 
 # --- Ordering tests ---
+
 
 def test_guidelines_before_numbered_list():
     """Output Guidelines must appear between '## PLAN' and the numbered list."""
@@ -95,11 +106,13 @@ def test_item2_references_table_format():
     # Find item 2 in the numbered list
     match = re.search(r"2\.\s+Implementation steps.*", prompt)
     assert match, "Could not find item 2 in the numbered list"
-    assert "table format above" in match.group(0), \
-        f"Item 2 does not reference table format: {match.group(0)}"
+    assert "table format above" in match.group(
+        0
+    ), f"Item 2 does not reference table format: {match.group(0)}"
 
 
 # --- Rendering with optional sections ---
+
 
 def test_prompt_without_understanding():
     """Prompt renders correctly when no shared_understanding is provided."""
@@ -157,6 +170,7 @@ def test_prompt_with_empty_string_understanding():
 
 
 # --- Task content does not break guidelines ---
+
 
 def test_task_with_special_characters():
     """Task containing special characters doesn't break the prompt structure."""
