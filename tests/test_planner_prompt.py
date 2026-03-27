@@ -8,15 +8,6 @@ import re
 from unittest.mock import patch, MagicMock
 
 
-# We mock run_agent and the git/artifact helpers so the planner function
-# only builds the prompt string and returns without side effects.
-MOCK_PATCHES = {
-    "ftl_sdlc_loop.supervisor.run_agent": MagicMock(return_value="mocked response"),
-    "ftl_sdlc_loop.supervisor.save_artifact": MagicMock(),
-    "ftl_sdlc_loop.supervisor.git_commit": MagicMock(),
-}
-
-
 def _call_planner(**kwargs):
     """Call planner() with all side-effects mocked; return the prompt string passed to run_agent."""
     defaults = {"task": "test task", "iteration": 1}
@@ -159,11 +150,10 @@ def test_prompt_with_both_understanding_and_feedback():
 
 
 def test_prompt_with_empty_string_understanding():
-    """Empty string for shared_understanding should still include the section header."""
+    """Empty string for shared_understanding is falsy, so the section should be omitted."""
     prompt = _call_planner(shared_understanding="")
-    # An empty string is truthy-ish for the `if shared_understanding:` check —
-    # actually empty string is falsy in Python, so it should be omitted
     assert "### Output Guidelines" in prompt
+    assert "SHARED UNDERSTANDING" not in prompt
 
 
 # --- Task content does not break guidelines ---
