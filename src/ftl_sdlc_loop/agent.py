@@ -288,6 +288,14 @@ def commit_agent_work(role: str, message: str) -> bool:
     # Stage changes in agent's directory
     git_cmd(["add", role + "/"], workspace)
 
+    # Source-modifying agents (implementer, tester) run in the workspace root
+    # and edit files outside their subdirectory. Stage all changes so source
+    # edits are captured in the agent's commit.
+    source_modifying_roles = {"implementer", "tester"}
+    if role in source_modifying_roles:
+        log(f"Staging all workspace changes for source-modifying role {role}")
+        git_cmd(["add", "-A"], workspace)
+
     # Check if there are changes to commit
     result = git_cmd(["diff", "--cached", "--quiet"], workspace)
     if result.returncode == 0:

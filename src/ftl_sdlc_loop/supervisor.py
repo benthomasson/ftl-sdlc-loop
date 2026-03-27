@@ -1265,8 +1265,16 @@ Provide your response in TWO parts:
 
 ## PLAN
 
+### Output Guidelines
+
+- **Use table format for file changes.** For each implementation step, include a table with columns: File, Line(s), Change Description. This lets the implementer go straight to the code.
+- **Include line numbers for every change site.** Read the actual files and reference specific line numbers. Do not give vague locations.
+- **Make decisions — do not defer to the implementer.** If a choice exists (e.g., "consider enriching X"), decide yes or no and state your reasoning. The implementer handles HOW, not WHAT.
+- **Analyze both directions for matching/lookup changes.** If a change involves matching A against B, explicitly verify that B-to-A also works correctly. State your analysis.
+- **Complete all plan steps.** Never truncate or abbreviate. If the plan is long, that is fine — an incomplete plan is worse than a long one.
+
 1. Requirements analysis - what exactly needs to be built and why
-2. Implementation steps (suggestions for the implementer)
+2. Implementation steps (suggestions for the implementer, using table format above)
 3. Key design decisions
 4. Success criteria - what the user should be able to do when complete
 5. If addressing user feedback, explain what you're prioritizing and why
