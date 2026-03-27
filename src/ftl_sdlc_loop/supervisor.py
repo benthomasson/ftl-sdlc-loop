@@ -2755,12 +2755,19 @@ def run_continuous(
 
 def main():
     """Main entry point for the ftl-sdlc-loop CLI."""
+    # Handle --version
+    if "--version" in sys.argv:
+        from importlib.metadata import version
+        print(f"ftl-sdlc-loop {version('ftl-sdlc-loop')}")
+        sys.exit(0)
+
     # Handle --help / -h explicitly to prevent it being treated as a task
     if "-h" in sys.argv or "--help" in sys.argv:
         print(f"Usage: {sys.argv[0]} <task description> [options]")
         print(f"       {sys.argv[0]} --continuous [options]")
         print("\nOptions:")
         print("  -h, --help            Show this help message and exit")
+        print("  --version             Show version and exit")
         print("  --workspace NAME      Named workspace (default: 'default')")
         print(
             "  --effort LEVEL        Effort level: minimal, moderate, maximum (default: moderate)"
