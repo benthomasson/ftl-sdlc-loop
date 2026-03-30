@@ -845,6 +845,28 @@ def init_workspace_from(source: str) -> bool:
                             print(f"  Added 'gitlab' remote: {remote_url}")
                         break
 
+    # Strip any pre-existing SDLC artifacts from the cloned workspace
+    # This prevents dirty source repos from contaminating the workspace
+    import glob as glob_mod
+    dirty_artifacts = []
+    for pattern in ARTIFACT_PATTERNS:
+        for path in glob_mod.glob(str(workspace / pattern)):
+            dirty_artifacts.append(Path(path))
+    if dirty_artifacts:
+        for p in dirty_artifacts:
+            rel = str(p.relative_to(workspace))
+            if p.is_dir():
+                subprocess.run(["git", "rm", "-rf", rel],
+                             cwd=workspace, env=env, capture_output=True)
+            elif p.exists():
+                subprocess.run(["git", "rm", "-f", rel],
+                             cwd=workspace, env=env, capture_output=True)
+        subprocess.run(
+            ["git", "commit", "-m", "[ftl-sdlc-loop] Strip pre-existing SDLC artifacts"],
+            cwd=workspace, env=env, capture_output=True
+        )
+        print(f"  Stripped {len(dirty_artifacts)} pre-existing SDLC artifacts from clone")
+
     print(f"Workspace '{get_workspace_name()}' cloned from {source_str}")
     print(f"  Location: {workspace}")
     print(f"  Branch: {target}")
@@ -1114,6 +1136,15 @@ def push_workspace(
             env=env,
             capture_output=True,
         )
+
+    # Check if there are actual changes after cleanup
+    diff_check = subprocess.run(
+        ["git", "diff", "--stat", f"origin/{branch}..HEAD"],
+        cwd=workspace, env=env, capture_output=True, text=True
+    )
+    if not diff_check.stdout.strip():
+        print("No code changes to push — only SDLC artifacts were present.")
+        return False
 
     if create_pr:
         # Push the working branch and create a PR
@@ -3562,6 +3593,18 @@ def main():
                     env=env,
                     capture_output=True,
                 )
+
+            # Check if there are actual code changes after cleaning artifacts
+            # If the only changes were SDLC artifacts, the diff will be empty
+            diff_check = subprocess.run(
+                ["git", "diff", "--stat", "origin/main..HEAD"],
+                cwd=workspace, env=env, capture_output=True, text=True
+            )
+            if not diff_check.stdout.strip():
+                print("No code changes after cleaning artifacts — skipping PR creation.")
+                print("The implementer may have edited files in the source repo instead of the workspace.")
+                print("Check the --init-from source repo for uncommitted changes.")
+                return
 
             print(f"Pushing branch {pr_branch}...")
             push_result = subprocess.run(
