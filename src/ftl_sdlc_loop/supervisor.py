@@ -1924,6 +1924,9 @@ def process_agent_output(
     # Merge agent's branch back to target branch
     if finalize_agent(agent_name):
         print(f"  [Merged {agent_name} branch to {get_target_branch()}]")
+    else:
+        print(f"  [WARNING: Failed to merge {agent_name} branch to {get_target_branch()}]")
+        print(f"  Code changes from {agent_name} may be lost!")
 
     return output
 

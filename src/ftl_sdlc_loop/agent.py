@@ -322,9 +322,23 @@ def merge_to_main(role: str) -> bool:
     result = git_cmd(["merge", role, "--no-edit"], workspace)
     if result.returncode == 0:
         log(f"Successfully merged {role} to {_target_branch}")
-    else:
-        log(f"Merge failed: {result.stderr}", "ERROR")
-    return result.returncode == 0
+        return True
+
+    # Merge failed — abort and retry with theirs strategy for source-modifying agents
+    log(f"Merge failed: {result.stderr}", "ERROR")
+    git_cmd(["merge", "--abort"], workspace)
+
+    source_modifying_roles = {"implementer", "tester"}
+    if role in source_modifying_roles:
+        log(f"Retrying merge with -X theirs for {role} (source changes take priority)")
+        result = git_cmd(["merge", role, "--no-edit", "-X", "theirs"], workspace)
+        if result.returncode == 0:
+            log(f"Successfully merged {role} to {_target_branch} with -X theirs")
+            return True
+        log(f"Merge with -X theirs also failed: {result.stderr}", "ERROR")
+        git_cmd(["merge", "--abort"], workspace)
+
+    return False
 
 
 def get_workspace_context(role: str) -> str:
