@@ -3661,6 +3661,8 @@ def main():
                             "--comment",
                         ]
                         # Use init-from repo for observations (clean tree, no SDLC artifacts)
+                        # Fall back to workspace if init-from not available
+                        review_repo = init_from_path or str(workspace)
                         if init_from_path:
                             # Fetch and checkout the PR branch in the source repo
                             subprocess.run(
@@ -3695,7 +3697,7 @@ def main():
                                     env=env,
                                     capture_output=True,
                                 )
-                            review_cmd.extend(["--repo", init_from_path])
+                        review_cmd.extend(["--repo", review_repo])
                         if github_issue_repo and github_issue_number:
                             issue_ref = f"https://github.com/{github_issue_repo}/issues/{github_issue_number}"
                             review_cmd.extend(["--github-issue", issue_ref])
