@@ -1531,11 +1531,13 @@ Address the reviewer's concerns in your implementation.
 """
 
     # Phase 1: Make the actual changes — no prose, just tool calls
+    workspace = get_workspace_dir()
     implement_prompt = f"""You are a software implementer. Your ONLY job right now is to
 make code changes using the Edit and Write tools. Do NOT write prose or
 documentation. Do NOT create markdown files. Just find the files and edit them.
 
-You are running in the SOURCE TREE of the project.
+You are running in the SOURCE TREE of the project at: {workspace}
+IMPORTANT: Only modify files inside {workspace}. Do NOT modify files outside this directory.
 
 Steps:
 1. Use Glob/Grep to find the files mentioned in the plan
@@ -1713,12 +1715,15 @@ def tester(
     Provides usage instructions to the User agent.
     Includes self-review.
     """
+    workspace = get_workspace_dir()
     prompt = f"""You are a QA tester. Your job is to:
 1. Create tests for this implementation
 2. Document HOW TO USE the software for the User
 
-You are running in the SOURCE TREE of the project. Test files should be
-created alongside the existing test infrastructure — use Glob to find
+You are running in the SOURCE TREE of the project at: {workspace}
+IMPORTANT: Only modify files inside {workspace}. Do NOT modify files outside this directory.
+
+Test files should be created alongside the existing test infrastructure — use Glob to find
 where existing tests live (e.g. `**/tests/**/test_*.py`) and put new
 tests in the appropriate location, NOT in a separate `tester/` directory.
 

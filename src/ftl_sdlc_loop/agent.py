@@ -439,6 +439,9 @@ The following files are available from previous stages:
 
 Your workspace directory is: {agent_workspace}
 Write any output files to this directory.
+
+IMPORTANT: Your working directory is {agent_cwd}. Only modify files within this directory.
+Do NOT modify files outside this directory (e.g. in the original source repo).
 """
 
     # Build command
