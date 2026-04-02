@@ -420,6 +420,10 @@ def run_agent(
     else:
         log("No prior context found")
 
+    # Determine working directory before building prompt so it can be referenced
+    source_modifying_roles = {"implementer", "tester"}
+    agent_cwd = workspace if role in source_modifying_roles else agent_session_dir
+
     # Build enhanced prompt with context
     full_prompt = message
     if workspace_context:
@@ -460,12 +464,6 @@ Do NOT modify files outside this directory (e.g. in the original source repo).
     # Remove CLAUDECODE env var to allow running from within Claude Code
     env = os.environ.copy()
     env.pop("CLAUDECODE", None)
-
-    # Agents that modify source code run in the workspace root (source tree)
-    # so they can find and edit existing files directly. Other agents run
-    # in their session directory.
-    source_modifying_roles = {"implementer", "tester"}
-    agent_cwd = workspace if role in source_modifying_roles else agent_session_dir
 
     log(f"Running claude command for {role}")
     log(
