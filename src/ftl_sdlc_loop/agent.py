@@ -65,6 +65,9 @@ def get_agents_dir(workspace_name: str | None = None) -> Path:
 # Target branch for agent merges (default: main)
 _target_branch = "main"
 
+# Additional read-only context directories (set via --context-dir)
+_context_dirs: list[str] = []
+
 
 def set_target_branch(branch: str) -> None:
     """Set the target branch for agent merges."""
@@ -75,6 +78,17 @@ def set_target_branch(branch: str) -> None:
 def get_target_branch() -> str:
     """Get the target branch for agent merges."""
     return _target_branch
+
+
+def set_context_dirs(dirs: list[str]) -> None:
+    """Set additional read-only context directories for agents."""
+    global _context_dirs
+    _context_dirs = dirs
+
+
+def get_context_dirs() -> list[str]:
+    """Get additional read-only context directories."""
+    return _context_dirs
 
 
 # Logging
@@ -424,6 +438,16 @@ def run_agent(
     source_modifying_roles = {"implementer", "tester"}
     agent_cwd = workspace if role in source_modifying_roles else agent_session_dir
 
+    # Build reference directory section for prompt
+    context_dirs = get_context_dirs()
+    ref_dirs_section = ""
+    if context_dirs:
+        dirs_list = "\n".join(f"- {d} (READ ONLY)" for d in context_dirs)
+        ref_dirs_section = f"""
+Reference directories available for reading (do NOT modify these):
+{dirs_list}
+"""
+
     # Build enhanced prompt with context
     full_prompt = message
     if workspace_context:
@@ -446,7 +470,7 @@ Write any output files to this directory.
 
 IMPORTANT: Your working directory is {agent_cwd}. Only modify files within this directory.
 Do NOT modify files outside this directory (e.g. in the original source repo).
-"""
+{ref_dirs_section}"""
 
     # Build command
     cmd = ["claude", "-p", full_prompt]
@@ -460,6 +484,10 @@ Do NOT modify files outside this directory (e.g. in the original source repo).
 
     # Add workspace directory for file access
     cmd.extend(["--add-dir", str(workspace)])
+
+    # Add read-only context directories
+    for ctx_dir in context_dirs:
+        cmd.extend(["--add-dir", ctx_dir])
 
     # Remove CLAUDECODE env var to allow running from within Claude Code
     env = os.environ.copy()

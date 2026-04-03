@@ -45,6 +45,7 @@ from .agent import (
     log,
     log_separator,
     run_agent,
+    set_context_dirs,
     set_target_branch,
     set_workspace,
 )
@@ -2825,6 +2826,9 @@ def main():
         print(
             "  --init-from PATH|URL  Clone repo into workspace (local path or git URL)"
         )
+        print(
+            "  --context-dir PATH    Add read-only reference directory for agents (repeatable)"
+        )
         print("  --env PATH            Copy .env file to workspace and load variables")
         print(
             "  --prompt-file PATH    Read task description from file instead of command line"
@@ -2941,6 +2945,9 @@ def main():
         print("  --queue PATH          Path to queue file (default: queue.txt)")
         print(
             "  --init-from PATH|URL  Clone repo into workspace (local path or git URL)"
+        )
+        print(
+            "  --context-dir PATH    Add read-only reference directory for agents (repeatable)"
         )
         print("  --env PATH            Copy .env file to workspace and load variables")
         print(
@@ -3201,6 +3208,16 @@ def main():
             and not continuous_mode
         ):
             sys.exit(0)
+
+    # Handle --context-dir (repeatable, read-only reference directories for agents)
+    context_dirs = []
+    while "--context-dir" in args:
+        idx = args.index("--context-dir")
+        context_dirs.append(os.path.abspath(args[idx + 1]))
+        args = args[:idx] + args[idx + 2:]
+    if context_dirs:
+        set_context_dirs(context_dirs)
+        print(f"  Context directories: {', '.join(context_dirs)}")
 
     # Handle --env early (load environment variables before running agents)
     if "--env" in args:
